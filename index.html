@@ -1,115 +1,87 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Grave Mapping AR - Anchor Mode</title>
+    <title>GeoAR Manual Debug</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-    
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        
-        /* Input Panel */
+        body { margin: 0; overflow: hidden; font-family: monospace; }
         .ui-panel {
-            position: fixed; bottom: 20px; left: 10px; z-index: 100;
-            background: rgba(0,0,0,0.8); color: white; padding: 15px;
-            border-radius: 12px; width: 220px; font-size: 13px;
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(0,0,0,0.85); color: white; padding: 15px;
+            border-radius: 10px; width: 90%; max-width: 350px; border: 1px solid #444;
         }
-
-        /* Rotating Compass UI */
-        #compass-wrapper {
-            position: fixed; top: 20px; right: 20px; z-index: 100;
-            width: 80px; height: 80px; background: rgba(255,255,255,0.1);
-            border-radius: 50%; border: 2px solid #28a745; backdrop-filter: blur(5px);
-        }
-        #compass-dial {
-            width: 100%; height: 100%; position: relative;
-            transition: transform 0.1s ease-out;
-        }
-        .direction { position: absolute; font-weight: bold; color: white; font-size: 14px; }
-        .n { top: 5px; left: 50%; transform: translateX(-50%); color: #ff4444; }
-        .e { right: 5px; top: 50%; transform: translateY(-50%); }
-        .s { bottom: 5px; left: 50%; transform: translateX(-50%); }
-        .w { left: 5px; top: 50%; transform: translateY(-50%); }
-        
-        /* The indicator for "Where you are facing" */
-        #center-needle {
-            position: absolute; top: -10px; left: 50%;
-            width: 2px; height: 20px; background: #28a745;
-            transform: translateX(-50%); z-index: 101;
-        }
-
-        input { width: 100%; margin: 5px 0; background: #333; color: white; border: 1px solid #555; padding: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 5px; font-weight: bold; }
+        .debug-data { color: #00ff00; margin-bottom: 10px; font-size: 12px; line-height: 1.4; }
+        input { width: 100%; margin: 5px 0; background: #222; color: #fff; border: 1px solid #555; padding: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 5px; }
+        .warning { color: #ff4444; font-weight: bold; }
     </style>
 </head>
 
-<body>
+<body style="margin: 0; overflow: hidden;">
 
     <div class="ui-panel">
-        <label>Tree Latitude:</label>
-        <input type="number" id="latInput" step="0.000001" value="52.367745">
-        <label>Tree Longitude:</label>
-        <input type="number" id="lonInput" step="0.000001" value="13.194577">
-        <button onclick="updateAnchor()">REFRESH ANCHOR</button>
-    </div>
-
-    <div id="compass-wrapper">
-        <div id="center-needle"></div>
-        <div id="compass-dial">
-            <div class="direction n">N</div>
-            <div class="direction e">E</div>
-            <div class="direction s">S</div>
-            <div class="direction w">W</div>
+        <div class="debug-data" id="stats">
+            GPS Accuracy: Waiting...<br>
+            Current Pos: ...
         </div>
+        <hr style="border: 0.5px solid #444">
+        <label>Set Target Latitude:</label>
+        <input type="number" id="latInput" step="0.000001" value="52.367745">
+        <label>Set Target Longitude:</label>
+        <input type="number" id="lonInput" step="0.000001" value="13.194577">
+        <button onclick="updateTarget()">DEPLOY PIN AT THESE COORDS</button>
     </div>
 
     <a-scene 
         embedded 
         vr-mode-ui="enabled: false" 
-        arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
+        arjs="sourceType: webcam; debugUIEnabled: false;">
 
         <a-camera gps-camera="gpsMinDistance: 1;" rotation-reader></a-camera>
-        
-        <a-entity id="anchor-container"></a-entity>
+        <a-entity id="target-container"></a-entity>
 
     </a-scene>
 
     <script>
-        // 1. COMPASS LOGIC
-        // Using 'deviceorientationabsolute' for Chrome/Android accuracy
-        window.addEventListener('deviceorientationabsolute', function(event) {
-            let heading = event.webkitCompassHeading || (360 - event.alpha);
-            if (heading) {
-                document.getElementById('compass-dial').style.transform = `rotate(${-heading}deg)`;
-            }
-        }, true);
-
-        // 2. ANCHOR LOGIC
+        // Monitor actual GPS hardware accuracy
         window.onload = () => {
-            updateAnchor();
-            // Force the GPS to stay high-accuracy
             if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(() => {}, (err) => {}, { enableHighAccuracy: true });
+                navigator.geolocation.watchPosition((position) => {
+                    const acc = position.coords.accuracy;
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    
+                    const statusColor = acc > 20 ? 'red' : '#00ff00';
+                    const div = document.getElementById('stats');
+                    div.innerHTML = `
+                        GPS ACCURACY: <span style="color:${statusColor}">${acc.toFixed(1)} meters</span><br>
+                        YOUR LAT: ${lat.toFixed(6)}<br>
+                        YOUR LON: ${lon.toFixed(6)}<br>
+                        ${acc > 20 ? '<span class="warning">(!) SIGNAL TOO WEAK TO ANCHOR</span>' : '<span>(+) SIGNAL OK</span>'}
+                    `;
+                }, (err) => {
+                    document.getElementById('stats').innerHTML = "GPS Error: " + err.message;
+                }, { enableHighAccuracy: true, maximumAge: 0 });
             }
+            updateTarget(); // Initial deploy
         };
 
-        function updateAnchor() {
+        function updateTarget() {
             const lat = parseFloat(document.getElementById('latInput').value);
             const lon = parseFloat(document.getElementById('lonInput').value);
-            const container = document.querySelector('#anchor-container');
+            const container = document.querySelector('#target-container');
             
-            // Clear existing pin
-            container.innerHTML = ''; 
+            container.innerHTML = ''; // Remove old pin
 
-            // Create the Red Anchor Pin (The Tree)
             const pin = document.createElement('a-cylinder');
             pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
             pin.setAttribute('color', '#ff4444');
-            pin.setAttribute('height', '20'); // Tall so you can see it from distance
-            pin.setAttribute('radius', '0.05');
+            pin.setAttribute('height', '30'); 
+            pin.setAttribute('radius', '0.15');
             
             container.appendChild(pin);
-            console.log("Anchor set at:", lat, lon);
+            console.log("Pin moved to:", lat, lon);
         }
     </script>
 </body>
