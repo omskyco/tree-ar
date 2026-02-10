@@ -1,61 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tree Anchor - Testing Mode</title>
+    <title>Tree Anchor - High Stability</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
     <style>
-        .ui { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;
-              background: rgba(0,0,0,0.8); color: #0f0; padding: 15px; border-radius: 10px; width: 80%; text-align: center; }
-        input { background: #222; color: #0f0; border: 1px solid #444; padding: 8px; width: 100px; margin: 5px; }
-        button { background: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        #dist-info { margin-top: 10px; color: yellow; font-family: monospace; }
+        .ui { position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; background: rgba(0,0,0,0.85); color: white; padding: 15px; box-sizing: border-box; text-align: center; font-family: sans-serif; }
+        .input-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; }
+        input { padding: 10px; border-radius: 5px; border: 1px solid #444; width: 120px; background: #222; color: #0f0; font-weight: bold; }
+        button { padding: 12px 24px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; max-width: 300px; }
+        #dist-readout { margin-top: 10px; color: #ffeb3b; font-family: monospace; font-size: 1.1em; }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
 
     <div class="ui">
-        <div>
-            Lat: <input id="lat" type="number" step="0.000001" value="52.367745">
-            Lon: <input id="lon" type="number" step="0.000001" value="13.194577">
+        <div class="input-group">
+            <input id="lat" type="number" step="0.000001" value="52.367745">
+            <input id="lon" type="number" step="0.000001" value="13.194577">
         </div>
-        <button onclick="updatePin()">📌 START & LOCK PIN</button>
-        <div id="dist-info">Distance: Not set</div>
+        <button onclick="lockPin()">📌 1. LOCK & ACTIVATE</button>
+        <div id="dist-readout">DISTANCE: PENDING GPS...</div>
     </div>
 
     <a-scene embedded vr-mode-ui="enabled: false" 
-             arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
+             arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
+             renderer="antialias: true; logarithmicDepthBuffer: true;">
         
-        <a-camera gps-camera="gpsMinDistance: 5;" rotation-reader far="10000"></a-camera>
+        <a-camera id="cam" gps-camera="gpsMinDistance: 2; alert: true;" rotation-reader far="10000"></a-camera>
 
         <a-entity id="tree-pin" visible="false">
-            <a-entity scale="50 50 50">
-                <a-cylinder color="red" radius="0.2" height="2"></a-cylinder>
-                <a-sphere color="yellow" radius="0.4" position="0 2 0"></a-sphere>
-                <a-text value="THE TREE" align="center" position="0 3 0" color="white"></a-text>
+            <a-entity scale="30 30 30">
+                <a-cylinder color="red" radius="0.2" height="3"></a-cylinder>
+                <a-sphere color="yellow" radius="0.4" position="0 3 0"></a-sphere>
+                <a-text value="STUCK TREE" align="center" position="0 4 0" color="white" width="10"></a-text>
             </a-entity>
         </a-entity>
-
     </a-scene>
 
     <script>
-        function updatePin() {
+        function lockPin() {
             const lat = document.getElementById('lat').value;
             const lon = document.getElementById('lon').value;
             const pin = document.getElementById('tree-pin');
+            const distText = document.getElementById('dist-readout');
 
+            // 1. Force set the coordinates
             pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
             pin.setAttribute('visible', 'true');
 
-            // Set up a distance listener
-            const interval = setInterval(() => {
+            // 2. Start checking distance manually
+            setInterval(() => {
                 const distance = pin.components['gps-entity-place'].distance;
                 if (distance !== undefined) {
-                    document.getElementById('dist-info').innerText = `Distance: ${Math.round(distance)} meters`;
+                    distText.innerText = `DISTANCE: ${Math.round(distance)} meters`;
+                } else {
+                    distText.innerText = "WAITING FOR GPS SENSORS...";
                 }
             }, 1000);
+            
+            console.log("Pin locked to:", lat, lon);
         }
+
+        // Emergency Permission Listener
+        window.addEventListener('gps-camera-update-position', (e) => {
+            console.log("GPS Position found:", e.detail.position);
+        });
     </script>
 </body>
 </html>
