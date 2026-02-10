@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fixed Anchor - Camera View</title>
+    <title>Fixed GPS Anchor - Manual Logic</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
@@ -23,10 +23,10 @@
 
     <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
         
-        <a-camera id="cam" rotation-reader></a-camera>
+        <a-camera id="cam" rotation-reader position="0 1.6 0"></a-camera>
         
         <a-entity id="pin-container">
-            <a-cylinder color="red" height="20" radius="0.2" position="0 0 -5"></a-cylinder>
+            <a-cylinder color="red" height="20" radius="0.2"></a-cylinder>
             <a-ring color="yellow" rotation="-90 0 0" radius-inner="0.5" radius-outer="0.7"></a-ring>
         </a-entity>
 
@@ -34,32 +34,31 @@
 
     <script>
         const pin = document.getElementById('pin-container');
+        // Your target coordinates
         const targetLat = 52.367745;
         const targetLon = 13.194577;
 
         if ("geolocation" in navigator) {
-            // watchPosition is the "active" way to track movement
             navigator.geolocation.watchPosition((pos) => {
                 const myLat = pos.coords.latitude;
                 const myLon = pos.coords.longitude;
                 const acc = pos.coords.accuracy;
 
-                // 1. Math: Convert Lat/Lon delta to Meters
+                // Haversine-style conversion to local meters
                 const deltaZ = (targetLat - myLat) * 111320;
                 const deltaX = (targetLon - myLon) * (111320 * Math.cos(myLat * Math.PI / 180));
                 const totalDist = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
 
-                // 2. Update UI
+                // Update UI Display
                 document.getElementById('acc').innerText = acc.toFixed(1);
                 document.getElementById('dist').innerText = totalDist.toFixed(1);
                 document.getElementById('coords').innerText = `${myLat.toFixed(6)}, ${myLon.toFixed(6)}`;
 
-                // 3. Move the Object
-                // We move the pin to its relative position in the 3D scene
-                pin.setAttribute('position', {x: deltaX, y: 0, z: -deltaZ});
+                // Update the Pin's position relative to the camera (0,0,0)
+                // If you walk toward the target, these deltas will decrease.
+                pin.setAttribute('position', { x: deltaX, y: 0, z: -deltaZ });
 
             }, (err) => {
-                console.error(err);
                 document.getElementById('coords').innerText = "GPS Error: " + err.message;
             }, {
                 enableHighAccuracy: true,
@@ -67,6 +66,7 @@
                 timeout: 10000
             });
         }
+
     </script>
 </body>
 </html>
