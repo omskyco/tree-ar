@@ -16,8 +16,7 @@
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
-    arjs="sourceType: webcam; gpsMinDistance: 1;"
-  >
+    arjs="sourceType: webcam; gpsMinDistance: 0; gpsTimeInterval: 500;">
     <a-camera gps-camera rotation-reader></a-camera>
   </a-scene>
 </body>
@@ -39,7 +38,19 @@ alert("Button works");
   const pin = document.createElement("a-entity");
   pin.setAttribute("id", "tree-pin");
   pin.setAttribute("gps-entity-place", `latitude: ${lat}; longitude: ${lng};`);
-  pin.setAttribute("geometry", "primitive: cone; radiusBottom: 0.5; height: 2");
+  
+  pin.addEventListener("gps-entity-place-update-position", () => {
+  console.log("GPS position resolved");
+});
+
+ pin.setAttribute("geometry", `
+  primitive: box;
+  width: 4;
+  height: 6;
+  depth: 4;
+`);
+pin.setAttribute("scale", "2 2 2");
+
   pin.setAttribute("material", "color: red");
   pin.setAttribute("position", "0 1 0");
 
