@@ -86,24 +86,33 @@
         }
 
         function onSelect() {
-            if (reticle.visible) {
-                const gridAnchor = new THREE.Group();
-                reticle.matrix.decompose(gridAnchor.position, gridAnchor.quaternion, gridAnchor.scale);
-                
-                // Align the whole grid to North
-                gridAnchor.rotation.y = northOffset;
+    if (reticle.visible) {
+        // 1. Create a permanent anchor group
+        const gridAnchor = new THREE.Group();
+        
+        // 2. IMPORTANT: Manually copy the position and orientation from the reticle's matrix
+        // This 'bakes' the current floor position into the gridAnchor
+        gridAnchor.position.setFromMatrixPosition(reticle.matrix);
+        gridAnchor.quaternion.setFromRotationMatrix(reticle.matrix);
+        
+        // 3. Apply the North Orientation offset
+        // We use rotateY so it spins around the center of the tree
+        gridAnchor.rotateY(northOffset);
 
-                // Create the 40 graves based on the square diagram
-                // Inner Ring (1-16) - Greenish
-                generateSquareRing(gridAnchor, 1, 16, 1.5, 0x99ff99); 
-                // Outer Ring (17-40) - Blueish
-                generateSquareRing(gridAnchor, 17, 40, 2.8, 0x99ccff);
+        // 4. Generate the 40 graves as children of this anchor
+        generateSquareRing(gridAnchor, 1, 16, 1.5, 0x99ff99); // Inner
+        generateSquareRing(gridAnchor, 17, 40, 2.8, 0x99ccff); // Outer
 
-                scene.add(gridAnchor);
-                reticle.visible = false; // Hide reticle after placement
-                document.getElementById('instructions').innerHTML = "GRID ANCHORED TO NORTH<br>Walk around to inspect graves.";
-            }
-        }
+        // 5. Add to the SCENE, not the camera or the controller
+        scene.add(gridAnchor);
+        
+        // 6. Disable the reticle so you don't accidentally move the grid
+        reticle.visible = false;
+        hitTestSource = null; // Stops searching for floor once anchored
+        
+        document.getElementById('instructions').innerHTML = "GRID LOCKED TO FLOOR<br>Walk around to see the graves.";
+    }
+}
 
         function generateSquareRing(parentGroup, startNum, endNum, distance, color) {
             const total = (endNum - startNum) + 1;
