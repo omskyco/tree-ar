@@ -1,92 +1,119 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-  </head>
+<head>
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 9999;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px;
+      border-radius: 4px;
+      font-family: sans-serif;
+    }
+
+    button {
+      padding: 6px 10px;
+    }
+  </style>
+</head>
 
 <body>
-  <div id="ui">
-    <input id="lat" value="52.367753" />
-    <input id="lng" value="13.194574" />
-    <button onclick="placePin()">Place pin</button>
-  </div>
 
-  <a-scene
-    vr-mode-ui="enabled: false"
-    embedded
-    arjs="sourceType: webcam; gpsMinDistance: 0; gpsTimeInterval: 500;">
-    <a-camera gps-camera rotation-reader></a-camera>
-  </a-scene>
-</body>
+<div id="ui">
+  <button id="placeBtn">Place tree</button>
+</div>
 
-</html>
+<a-scene
+  embedded
+  vr-mode-ui="enabled: false"
+  arjs="sourceType: webcam; debugUIEnabled: false;"
+>
+  <a-camera id="camera"></a-camera>
+
+  <!-- Tree anchor -->
+  <a-entity id="treeAnchor" visible="false"></a-entity>
+</a-scene>
+
 <script>
-function placePin() {
+let anchorPlaced = false;
 
-alert("Button works");
-  const lat = parseFloat(document.getElementById("lat").value);
-  const lng = parseFloat(document.getElementById("lng").value);
+const placeBtn = document.getElementById("placeBtn");
+const anchor = document.getElementById("treeAnchor");
 
-  const scene = document.querySelector("a-scene");
+placeBtn.addEventListener("click", () => {
+  if (anchorPlaced) return;
 
-  // Remove existing pin if any
-  const oldPin = document.getElementById("tree-pin");
-  if (oldPin) oldPin.remove();
+  // Place anchor 2 meters in front of camera
+  anchor.setAttribute("position", "0 0 -2");
+  anchor.setAttribute("rotation", "0 0 0");
+  anchor.setAttribute("visible", "true");
 
-  const pin = document.createElement("a-entity");
-  pin.setAttribute("id", "tree-pin");
-  pin.setAttribute("gps-entity-place", `latitude: ${lat}; longitude: ${lng};`);
-  
-  pin.addEventListener("gps-entity-place-update-position", () => {
-  console.log("GPS position resolved");
+  createTreeVisual();
+  createGraves();
+
+  anchorPlaced = true;
+  placeBtn.disabled = true;
 });
 
- pin.setAttribute("geometry", `
-  primitive: box;
-  width: 4;
-  height: 6;
-  depth: 4;
-`);
-pin.setAttribute("scale", "2 2 2");
+function createTreeVisual() {
+  const trunk = document.createElement("a-cylinder");
+  trunk.setAttribute("radius", "0.25");
+  trunk.setAttribute("height", "2");
+  trunk.setAttribute("color", "#8B5A2B");
+  trunk.setAttribute("position", "0 1 0");
 
-  pin.setAttribute("material", "color: red");
-  pin.setAttribute("position", "0 1 0");
+  anchor.appendChild(trunk);
+}
 
-  scene.appendChild(pin);
+function createGraves() {
+  const radius = 1.4; // meters from trunk
+  const slots = 12;   // adjust to your real count
+
+  for (let i = 0; i < slots; i++) {
+    const angle = (i / slots) * Math.PI * 2;
+
+    const x = Math.sin(angle) * radius;
+    const z = Math.cos(angle) * radius;
+
+    const circle = document.createElement("a-circle");
+    circle.setAttribute("radius", "0.3");
+    circle.setAttribute("rotation", "-90 0 0");
+    circle.setAttribute("position", `${x} 0 ${z}`);
+
+    const occupied = (i % 3 === 0); // demo logic
+    circle.setAttribute(
+      "material",
+      `color: ${occupied ? "red" : "green"}; opacity: 0.8`
+    );
+
+    const label = document.createElement("a-text");
+    label.setAttribute("value", i + 1);
+    label.setAttribute("align", "center");
+    label.setAttribute("position", "0 0.01 0");
+    label.setAttribute("scale", "2 2 2");
+    label.setAttribute("color", "black");
+
+    circle.appendChild(label);
+    anchor.appendChild(circle);
+  }
 }
 </script>
-<style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
 
-  a-scene {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  #ui {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    z-index: 9999;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 8px;
-    border-radius: 4px;
-  }
-
-  #ui input {
-    width: 140px;
-    display: block;
-    margin-bottom: 6px;
-  }
-</style>
+</body>
+</html>
