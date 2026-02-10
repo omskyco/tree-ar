@@ -1,85 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ultimate Anchor Fix</title>
+    <title>Hybrid GPS Anchor</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <style>
-        .ui-panel {
-            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(0,0,0,0.9); color: white; padding: 15px;
-            border-radius: 12px; width: 85%; max-width: 320px; font-family: sans-serif;
-        }
-        .status { font-size: 11px; color: #00ff00; margin-bottom: 8px; font-family: monospace; }
-        input { width: 100%; margin: 4px 0; padding: 8px; background: #222; color: #fff; border: 1px solid #555; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #e74c3c; color: white; border: none; font-weight: bold; margin-top: 8px; border-radius: 5px; cursor: pointer; }
-        #deploy-btn { background: #27ae60; }
+        .ui { position: fixed; top: 10px; left: 10px; z-index: 999; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 12px; }
+        input { width: 100px; background: #222; color: #0f0; border: 1px solid #444; }
+        button { background: #28a745; color: white; border: none; padding: 5px 10px; cursor: pointer; }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
 
-    <div class="ui-panel">
-        <div class="status" id="gps-status">GPS Accuracy: Waiting for permission...</div>
-        <label>Lat:</label>
-        <input type="number" id="latInput" step="0.000001" value="52.367745">
-        <label>Lon:</label>
-        <input type="number" id="lonInput" step="0.000001" value="13.194577">
-        
-        <button id="deploy-btn" onclick="forceDeploy()">FORCE ANCHOR PIN</button>
-        <button onclick="location.reload()">FULL REBOOT APP</button>
+    <div class="ui">
+        Accuracy: <span id="acc">0</span>m | Dist: <span id="dist">0</span>m<br>
+        Target Lat: <input type="number" id="tLat" value="52.367745" step="0.000001"><br>
+        Target Lon: <input type="number" id="tLon" value="13.194577" step="0.000001"><br>
+        <button onclick="manualUpdate()">MANUAL SYNC</button>
     </div>
 
-    <a-scene 
-        embedded 
-        vr-mode-ui="enabled: false" 
-        arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
-
-        <a-camera 
-            gps-camera="gpsMinDistance: 0.5; alert: true;" 
-            rotation-reader>
-        </a-camera>
-
-        <a-entity id="anchor-group"></a-entity>
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+        <a-camera id="cam" rotation-reader></a-camera>
+        
+        <a-entity id="pin-container">
+            <a-cylinder color="red" height="100" radius="0.2" position="0 0 -5"></a-cylinder>
+        </a-entity>
     </a-scene>
 
     <script>
-        // High-precision tracking to wake up the sensor
-        let currentAccuracy = 100;
+        const pin = document.getElementById('pin-container');
+        
+        function manualUpdate() {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const myLat = pos.coords.latitude;
+                const myLon = pos.coords.longitude;
+                const tLat = parseFloat(document.getElementById('tLat').value);
+                const tLon = parseFloat(document.getElementById('tLon').value);
 
-        window.onload = () => {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition((pos) => {
-                    currentAccuracy = pos.coords.accuracy;
-                    document.getElementById('gps-status').innerHTML = 
-                        `ACCURACY: ${currentAccuracy.toFixed(1)}m<br>STATUS: ${currentAccuracy < 15 ? 'STABLE' : 'DRIFTING'}`;
-                }, (err) => {}, { enableHighAccuracy: true });
-            }
-        };
+                // Calculate distance in meters (X and Z axis)
+                // 1 degree lat is ~111,320 meters
+                const deltaY = (tLat - myLat) * 111320;
+                const deltaX = (tLon - myLon) * (40075000 * Math.cos(myLat * Math.PI/180) / 360);
 
-        function forceDeploy() {
-            const lat = parseFloat(document.getElementById('latInput').value);
-            const lon = parseFloat(document.getElementById('lonInput').value);
-            const group = document.querySelector('#anchor-group');
-            
-            // 1. Wipe everything
-            group.innerHTML = ''; 
+                // Update the visual stats
+                document.getElementById('acc').innerText = pos.coords.accuracy.toFixed(1);
+                const totalDist = Math.sqrt(deltaX*deltaX + deltaY*deltaY);
+                document.getElementById('dist').innerText = totalDist.toFixed(1);
 
-            // 2. Create the pin but with a small timeout to ensure DOM registration
-            setTimeout(() => {
-                const pin = document.createElement('a-cylinder');
+                // Move the object to that offset relative to our starting 0,0,0
+                // In A-Frame: X is Left/Right, Z is Forward/Back (-Z is North-ish)
+                pin.setAttribute('position', `${deltaX} 0 ${-deltaY}`);
                 
-                // IMPORTANT: We use the 'gps-entity-place' as a fresh attribute
-                pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
-                pin.setAttribute('color', '#ff4444');
-                pin.setAttribute('height', '50'); // Extremely tall to see it from a distance
-                pin.setAttribute('radius', '0.2');
-                pin.setAttribute('material', 'opacity: 0.9; metalness: 0.5');
-
-                group.appendChild(pin);
-                alert("Pin Anchored! Walk 5 meters to test.");
-            }, 100);
+                console.log(`Moving Pin to offset: X:${deltaX} Z:${-deltaY}`);
+            }, (err) => alert(err.message), { enableHighAccuracy: true });
         }
+
+        // Auto-sync every 2 seconds
+        setInterval(manualUpdate, 2000);
     </script>
 </body>
 </html>
