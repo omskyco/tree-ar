@@ -1,66 +1,99 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tree Anchor - The "Sticky" Hybrid</title>
+    <title>Tree Anchor - GitHub Stable</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
     <style>
-        .ui { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;
-              background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 10px; width: 85%; text-align: center; }
-        input { background: #222; color: #0f0; border: 1px solid #444; padding: 10px; width: 110px; margin: 5px; }
-        button { padding: 12px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
-        #log { font-size: 10px; color: #aaa; margin-top: 10px; font-family: monospace; }
+        .ui {
+            position: fixed; top: 0; left: 0; width: 100%; z-index: 1000;
+            background: rgba(0,0,0,0.85); color: white; padding: 15px; text-align: center;
+        }
+        input { padding: 10px; border-radius: 5px; width: 120px; background: #222; color: #0f0; border: 1px solid #444; margin: 5px; }
+        button { 
+            padding: 15px 30px; background: #e74c3c; color: white; border: none; 
+            border-radius: 8px; cursor: pointer; font-weight: bold; width: 90%;
+        }
+        #status { margin-top: 10px; color: #ffeb3b; font-family: monospace; font-size: 0.9em; }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
 
     <div class="ui">
-        <div>
+        <div class="inputs">
             <input id="lat" type="number" step="0.000001" value="52.367745">
             <input id="lon" type="number" step="0.000001" value="13.194577">
         </div>
-        <button onclick="activateAR()">📍 LOCK COORDINATES</button>
-        <div id="log">Waiting for Start...</div>
+        <button onclick="startExperience()">📍 ACTIVATE SENSORS</button>
+        <div id="status">STATUS: TAP RED BUTTON TO START</div>
     </div>
 
     <a-scene 
         embedded 
+        vr-mode-ui="enabled: false"
         arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
-        renderer="logarithmicDepthBuffer: true;">
+        renderer="antialias: true; alpha: true;">
         
-        <a-camera gps-camera="gpsMinDistance: 2; alert: true;" rotation-reader far="10000"></a-camera>
+        <a-camera id="cam" gps-camera="gpsMinDistance: 2; alert: true;" rotation-reader far="10000"></a-camera>
 
         <a-entity id="tree-pin" visible="false">
-            <a-cylinder color="red" radius="0.2" height="10" position="0 5 0"></a-entity>
-            <a-sphere color="yellow" radius="1" position="0 10 0"></a-sphere>
-            <a-text value="TREE LOCATION" align="center" position="0 12 0" scale="20 20 20"></a-text>
+            <a-entity scale="30 30 30">
+                <a-cylinder color="red" radius="0.2" height="4" position="0 2 0"></a-cylinder>
+                <a-sphere color="yellow" radius="0.4" position="0 4.5 0"></a-sphere>
+                <a-text value="TREE" align="center" position="0 5.5 0" width="10"></a-text>
+            </a-entity>
         </a-entity>
-
     </a-scene>
 
     <script>
-        function activateAR() {
+        function startExperience() {
+            const status = document.getElementById('status');
+            
+            // Step 1: Request Device Orientation (Required for iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response == 'granted') {
+                            status.innerText = "Compass Access: OK. Checking GPS...";
+                            initGPS();
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                // Non-iOS or older devices
+                initGPS();
+            }
+        }
+
+        function initGPS() {
+            const status = document.getElementById('status');
             const lat = document.getElementById('lat').value;
             const lon = document.getElementById('lon').value;
             const pin = document.getElementById('tree-pin');
-            const log = document.getElementById('log');
 
-            // 1. Manually set the place
-            pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
-            pin.setAttribute('visible', 'true');
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    status.innerText = `GPS OK: Distance calculating...`;
+                    status.style.color = "#0f0";
+                    
+                    pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
+                    pin.setAttribute('visible', 'true');
 
-            log.innerText = "Target Set. If you don't see it, spin 360° slowly.";
-
-            // 2. The "Sticking" Logic: Monitor distance
-            setInterval(() => {
-                const dist = pin.components['gps-entity-place']?.distance;
-                if (dist !== undefined) {
-                    log.innerText = `DISTANCE: ${Math.round(dist)}m | LAT: ${lat}`;
-                } else {
-                    log.innerText = "GPS Search: Move phone closer to window...";
-                }
-            }, 1000);
+                    // Check distance every second
+                    setInterval(() => {
+                        const distance = pin.components['gps-entity-place'].distance;
+                        if (distance !== undefined) {
+                            status.innerText = `DISTANCE TO TREE: ${Math.round(distance)} meters`;
+                        }
+                    }, 1000);
+                },
+                (err) => {
+                    status.innerText = "GPS Error: " + err.message;
+                    status.style.color = "red";
+                },
+                { enableHighAccuracy: true }
+            );
         }
     </script>
 </body>
