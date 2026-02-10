@@ -1,57 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mapping AR</title>
+    <title>Grave Mapping AR - Anchor Mode</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
         
-        /* Minimalist UI */
+        /* Input Panel */
         .ui-panel {
             position: fixed; bottom: 20px; left: 10px; z-index: 100;
             background: rgba(0,0,0,0.8); color: white; padding: 15px;
-            border-radius: 12px; width: 200px; font-size: 13px;
+            border-radius: 12px; width: 220px; font-size: 13px;
         }
 
-        /* Visual Compass */
+        /* Rotating Compass UI */
         #compass-wrapper {
             position: fixed; top: 20px; right: 20px; z-index: 100;
             width: 80px; height: 80px; background: rgba(255,255,255,0.1);
-            border-radius: 50%; border: 2px solid #28a745;
-            backdrop-filter: blur(5px);
+            border-radius: 50%; border: 2px solid #28a745; backdrop-filter: blur(5px);
         }
         #compass-dial {
             width: 100%; height: 100%; position: relative;
             transition: transform 0.1s ease-out;
         }
-        .direction {
-            position: absolute; font-weight: bold; color: white; font-size: 14px;
-        }
+        .direction { position: absolute; font-weight: bold; color: white; font-size: 14px; }
         .n { top: 5px; left: 50%; transform: translateX(-50%); color: #ff4444; }
         .e { right: 5px; top: 50%; transform: translateY(-50%); }
         .s { bottom: 5px; left: 50%; transform: translateX(-50%); }
         .w { left: 5px; top: 50%; transform: translateY(-50%); }
         
+        /* The indicator for "Where you are facing" */
         #center-needle {
             position: absolute; top: -10px; left: 50%;
             width: 2px; height: 20px; background: #28a745;
             transform: translateX(-50%); z-index: 101;
         }
 
-        input { width: 100%; margin: 5px 0; background: #333; color: white; border: 1px solid #555; padding: 4px; }
-        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 5px; }
+        input { width: 100%; margin: 5px 0; background: #333; color: white; border: 1px solid #555; padding: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 5px; font-weight: bold; }
     </style>
 </head>
 
 <body>
 
     <div class="ui-panel">
-        <label>Center Lat:</label>
+        <label>Tree Latitude:</label>
         <input type="number" id="latInput" step="0.000001" value="52.367745">
-        <label>Center Lon:</label>
+        <label>Tree Longitude:</label>
         <input type="number" id="lonInput" step="0.000001" value="13.194577">
-        <button onclick="updateCenter()">REFRESH VIEW</button>
+        <button onclick="updateAnchor()">REFRESH ANCHOR</button>
     </div>
 
     <div id="compass-wrapper">
@@ -64,56 +63,53 @@
         </div>
     </div>
 
-    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
-        <a-camera gps-camera rotation-reader></a-camera>
-        <a-entity id="anchor-point"></a-entity>
+    <a-scene 
+        embedded 
+        vr-mode-ui="enabled: false" 
+        arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
+
+        <a-camera gps-camera="gpsMinDistance: 1;" rotation-reader></a-camera>
+        
+        <a-entity id="anchor-container"></a-entity>
+
     </a-scene>
 
     <script>
-        // Handle Compass Rotation
+        // 1. COMPASS LOGIC
+        // Using 'deviceorientationabsolute' for Chrome/Android accuracy
         window.addEventListener('deviceorientationabsolute', function(event) {
             let heading = event.webkitCompassHeading || (360 - event.alpha);
             if (heading) {
-                // Rotate the dial in the opposite direction of the phone's turn
                 document.getElementById('compass-dial').style.transform = `rotate(${-heading}deg)`;
             }
         }, true);
 
-        window.onload = () => { updateCenter(); };
+        // 2. ANCHOR LOGIC
+        window.onload = () => {
+            updateAnchor();
+            // Force the GPS to stay high-accuracy
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(() => {}, (err) => {}, { enableHighAccuracy: true });
+            }
+        };
 
-        function updateCenter() {
+        function updateAnchor() {
             const lat = parseFloat(document.getElementById('latInput').value);
             const lon = parseFloat(document.getElementById('lonInput').value);
-            const anchorContainer = document.querySelector('#anchor-point');
-            anchorContainer.innerHTML = ''; 
+            const container = document.querySelector('#anchor-container');
+            
+            // Clear existing pin
+            container.innerHTML = ''; 
 
-            // 1. The Center Pin (Tree)
+            // Create the Red Anchor Pin (The Tree)
             const pin = document.createElement('a-cylinder');
             pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
             pin.setAttribute('color', '#ff4444');
-            pin.setAttribute('height', '10');
+            pin.setAttribute('height', '20'); // Tall so you can see it from distance
             pin.setAttribute('radius', '0.05');
-            anchorContainer.appendChild(pin);
-
-            // 2. The 40 Graves Grid Logic (2 squares/rows)
-            // Uncomment the code below when you want to see the circles!
-            /*
-            for (let row = 0; row < 2; row++) {
-                for (let col = 0; col < 20; col++) {
-                    const hole = document.createElement('a-ring');
-                    // Offset each grave by roughly 1.5 meters (0.000015 degrees)
-                    const latOffset = (row * 0.000015) + 0.00003; 
-                    const lonOffset = (col * 0.000015) - 0.00015;
-
-                    hole.setAttribute('gps-entity-place', `latitude: ${lat + latOffset}; longitude: ${lon + lonOffset};`);
-                    hole.setAttribute('color', '#ffffff');
-                    hole.setAttribute('radius-inner', '0.2');
-                    hole.setAttribute('radius-outer', '0.3');
-                    hole.setAttribute('rotation', '-90 0 0');
-                    anchorContainer.appendChild(hole);
-                }
-            }
-            */
+            
+            container.appendChild(pin);
+            console.log("Anchor set at:", lat, lon);
         }
     </script>
 </body>
