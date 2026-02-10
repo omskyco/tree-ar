@@ -67,33 +67,42 @@
         });
 
         function initLocation() {
-            const latVal = document.getElementById('lat').value;
-            const lonVal = document.getElementById('lon').value;
-            const pin = document.getElementById('tree-pin');
+    const latVal = document.getElementById('lat').value;
+    const lonVal = document.getElementById('lon').value;
+    const pin = document.getElementById('tree-pin');
+    const status = document.getElementById('status');
 
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    status.innerText = "GPS Found! Locking Pin...";
-                    status.style.color = "#0f0";
-                    
-                    pin.setAttribute('gps-entity-place', `latitude: ${latVal}; longitude: ${lonVal};`);
-                    pin.setAttribute('visible', 'true');
+    status.innerText = "Searching for satellites... Go near a window!";
 
-                    // Start distance tracker
-                    setInterval(() => {
-                        const distance = pin.components['gps-entity-place']?.distance;
-                        if (distance !== undefined) {
-                            status.innerText = "DISTANCE: " + Math.round(distance) + "m";
-                        }
-                    }, 1000);
-                },
-                (err) => {
-                    status.innerText = "GPS Error: " + err.message + " (Check Permissions)";
-                    status.style.color = "red";
-                },
-                { enableHighAccuracy: true, timeout: 10000 }
-            );
-        }
+    // THE FORCE-START SETTINGS
+    const gpsOptions = {
+        enableHighAccuracy: true, // Uses GPS hardware, not just Wi-Fi
+        timeout: 60000,           // Give it 60 seconds before giving up
+        maximumAge: 0             // Force a brand new location check
+    };
+
+    navigator.geolocation.watchPosition( // 'watch' is better than 'get' for staying 'stuck'
+        (pos) => {
+            const acc = Math.round(pos.coords.accuracy);
+            status.innerText = `GPS Found! Accuracy: ${acc}m`;
+            status.style.color = "#0f0";
+            
+            pin.setAttribute('gps-entity-place', `latitude: ${latVal}; longitude: ${lonVal};`);
+            pin.setAttribute('visible', 'true');
+
+            // Distance calculation
+            const distance = pin.components['gps-entity-place']?.distance;
+            if (distance !== undefined) {
+                status.innerText = `STUCK! Distance: ${Math.round(distance)}m (Acc: ${acc}m)`;
+            }
+        },
+        (err) => {
+            status.innerText = "GPS Error: " + err.message;
+            status.style.color = "red";
+        }, 
+        gpsOptions
+    );
+}
     </script>
 </body>
 </html>
