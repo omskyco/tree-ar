@@ -1,35 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tree AR Milestone</title>
+    <title>Dynamic Tree AR</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <style>
+        .button-overlay {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10; padding: 15px; background: green; color: white; border: none; border-radius: 10px;
+        }
+    </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
-    <a-scene 
-        vr-mode-ui="enabled: false"
-        embedded 
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+    <button class="button-overlay" onclick="setTreeAtCurrentLocation()">SET TREE HERE</button>
 
+    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
         <a-camera gps-camera rotation-reader></a-camera>
-
-        <a-cylinder 
-            id="tree-trunk"
-            color="brown" 
-            height="2" 
-            radius="0.5"
-            gps-entity-place="latitude: 51.5074; longitude: -0.1278;">
-        </a-cylinder>
-
-        <a-ring 
-            color="yellow" 
-            radius-inner="0.4" 
-            radius-outer="0.6" 
-            rotation="-90 0 0" 
-            gps-entity-place="latitude: 51.50745; longitude: -0.1278;">
-        </a-ring>
-
     </a-scene>
+
+    <script>
+        function setTreeAtCurrentLocation() {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                
+                alert(`Tree set at: ${lat}, ${lon}. Now walk away to see the holes!`);
+                
+                // We create the "holes" around your current spot
+                createHole(lat + 0.00002, lon, "North Hole");
+                createHole(lat - 0.00002, lon, "South Hole");
+                createHole(lat, lon + 0.00002, "East Hole"); // Adjust this for the 'Off East' challenge
+            });
+        }
+
+        function createHole(lat, lon, name) {
+            const scene = document.querySelector('a-scene');
+            const hole = document.createElement('a-ring');
+            hole.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
+            hole.setAttribute('color', 'yellow');
+            hole.setAttribute('radius-inner', '0.5');
+            hole.setAttribute('radius-outer', '0.7');
+            hole.setAttribute('rotation', '-90 0 0');
+            scene.appendChild(hole);
+        }
+    </script>
 </body>
 </html>
