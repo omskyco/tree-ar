@@ -1,98 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tree Anchor - GitHub Stable</title>
+    <title>Tree Anchor - Fail-Safe Edition</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
     <style>
         .ui {
             position: fixed; top: 0; left: 0; width: 100%; z-index: 1000;
-            background: rgba(0,0,0,0.85); color: white; padding: 15px; text-align: center;
+            background: rgba(0,0,0,0.9); color: white; padding: 15px; text-align: center;
         }
-        input { padding: 10px; border-radius: 5px; width: 120px; background: #222; color: #0f0; border: 1px solid #444; margin: 5px; }
+        input { padding: 8px; border-radius: 4px; width: 110px; background: #222; color: #0f0; border: 1px solid #444; margin: 5px; }
         button { 
-            padding: 15px 30px; background: #e74c3c; color: white; border: none; 
-            border-radius: 8px; cursor: pointer; font-weight: bold; width: 90%;
+            padding: 15px; background: #28a745; color: white; border: none; 
+            border-radius: 8px; cursor: pointer; font-weight: bold; width: 90%; font-size: 16px;
         }
-        #status { margin-top: 10px; color: #ffeb3b; font-family: monospace; font-size: 0.9em; }
+        #status { margin-top: 10px; color: #ffeb3b; font-family: monospace; }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
 
     <div class="ui">
-        <div class="inputs">
-            <input id="lat" type="number" step="0.000001" value="52.367745">
-            <input id="lon" type="number" step="0.000001" value="13.194577">
+        <div>
+            Lat: <input id="lat" type="number" step="0.000001" value="52.367745">
+            Lon: <input id="lon" type="number" step="0.000001" value="13.194577">
         </div>
-        <button onclick="startExperience()">📍 ACTIVATE SENSORS</button>
-        <div id="status">STATUS: TAP RED BUTTON TO START</div>
+        <button id="start_btn">📍 CLICK TO INITIALIZE AR</button>
+        <div id="status">STATUS: READY</div>
     </div>
 
-    <a-scene 
-        embedded 
-        vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
-        renderer="antialias: true; alpha: true;">
-        
-        <a-camera id="cam" gps-camera="gpsMinDistance: 2; alert: true;" rotation-reader far="10000"></a-camera>
+    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
+        <a-camera id="cam" gps-camera="gpsMinDistance: 2;" rotation-reader far="10000"></a-camera>
 
         <a-entity id="tree-pin" visible="false">
             <a-entity scale="30 30 30">
-                <a-cylinder color="red" radius="0.2" height="4" position="0 2 0"></a-cylinder>
-                <a-sphere color="yellow" radius="0.4" position="0 4.5 0"></a-sphere>
-                <a-text value="TREE" align="center" position="0 5.5 0" width="10"></a-text>
+                <a-cylinder color="red" radius="0.2" height="4"></a-cylinder>
+                <a-sphere color="yellow" radius="0.4" position="0 4 0"></a-sphere>
+                <a-text value="TREE" align="center" position="0 5 0" width="10"></a-text>
             </a-entity>
         </a-entity>
     </a-scene>
 
     <script>
-        function startExperience() {
-            const status = document.getElementById('status');
+        const startBtn = document.getElementById('start_btn');
+        const status = document.getElementById('status');
+
+        startBtn.addEventListener('click', function() {
+            status.innerText = "Attempting to start...";
             
-            // Step 1: Request Device Orientation (Required for iOS 13+)
+            // 1. Try to get Compass Permissions (iOS)
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(response => {
-                        if (response == 'granted') {
-                            status.innerText = "Compass Access: OK. Checking GPS...";
-                            initGPS();
-                        }
+                        status.innerText = "Compass: " + response + ". Fetching GPS...";
+                        initLocation();
                     })
-                    .catch(console.error);
+                    .catch(err => {
+                        status.innerText = "Compass Error. Trying GPS anyway...";
+                        initLocation();
+                    });
             } else {
-                // Non-iOS or older devices
-                initGPS();
+                // Android or non-iOS
+                status.innerText = "Non-iOS device. Fetching GPS...";
+                initLocation();
             }
-        }
+        });
 
-        function initGPS() {
-            const status = document.getElementById('status');
-            const lat = document.getElementById('lat').value;
-            const lon = document.getElementById('lon').value;
+        function initLocation() {
+            const latVal = document.getElementById('lat').value;
+            const lonVal = document.getElementById('lon').value;
             const pin = document.getElementById('tree-pin');
 
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    status.innerText = `GPS OK: Distance calculating...`;
+                    status.innerText = "GPS Found! Locking Pin...";
                     status.style.color = "#0f0";
                     
-                    pin.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
+                    pin.setAttribute('gps-entity-place', `latitude: ${latVal}; longitude: ${lonVal};`);
                     pin.setAttribute('visible', 'true');
 
-                    // Check distance every second
+                    // Start distance tracker
                     setInterval(() => {
-                        const distance = pin.components['gps-entity-place'].distance;
+                        const distance = pin.components['gps-entity-place']?.distance;
                         if (distance !== undefined) {
-                            status.innerText = `DISTANCE TO TREE: ${Math.round(distance)} meters`;
+                            status.innerText = "DISTANCE: " + Math.round(distance) + "m";
                         }
                     }, 1000);
                 },
                 (err) => {
-                    status.innerText = "GPS Error: " + err.message;
+                    status.innerText = "GPS Error: " + err.message + " (Check Permissions)";
                     status.style.color = "red";
                 },
-                { enableHighAccuracy: true }
+                { enableHighAccuracy: true, timeout: 10000 }
             );
         }
     </script>
