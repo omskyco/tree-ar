@@ -3,22 +3,27 @@
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>AR.js Location Based - Grave Grid</title>
+    <title>Grave Grid - Production</title>
     <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
     <a-scene
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+        arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera 
+            gps-camera="minDistance: 1; maxDistance: 1000; gpsMinDistance: 1;" 
+            rotation-reader>
+        </a-camera>
 
-        <a-entity id="tree-center" gps-entity-place="latitude: 52.367967; longitude: 13.194498;">
-            </a-entity>
+        <a-entity 
+            id="tree-center" 
+            gps-entity-place="latitude: 52.367967; longitude: 13.194498;">
+        </a-entity>
 
     </a-scene>
 
@@ -26,11 +31,11 @@
         window.onload = () => {
             const tree = document.querySelector('#tree-center');
 
-            // Generate Inner Square (16 graves) at 2 meter radius
-            renderGrid(tree, 1, 16, 2, "#99ff99"); 
+            // INNER SQUARE: Graves 1-16 (2m radius)
+            renderGrid(tree, 1, 16, 2, "#00ff00"); 
             
-            // Generate Outer Square (24 graves) at 4 meter radius
-            renderGrid(tree, 17, 40, 4, "#99ccff");
+            // OUTER SQUARE: Graves 17-40 (4m radius)
+            renderGrid(tree, 17, 40, 4, "#00ffff");
         };
 
         function renderGrid(parent, start, end, radius, color) {
@@ -40,35 +45,36 @@
 
             for (let i = 0; i < count; i++) {
                 const graveEntity = document.createElement('a-entity');
-                
                 let x = 0, z = 0;
                 const side = Math.floor(i / perSide);
                 const progress = (i % perSide) * step - radius;
 
-                // Positioning logic matching North/East/South/West
+                // North = -Z, East = +X, South = +Z, West = -X
                 if (side === 0) { x = progress; z = -radius; } 
                 else if (side === 1) { x = radius; z = progress; } 
                 else if (side === 2) { x = -progress; z = radius; } 
                 else if (side === 3) { x = -radius; z = -progress; }
 
-                // Set position in METERS relative to the tree-center GPS point
                 graveEntity.setAttribute('position', `${x} 0 ${z}`);
 
-                // The Visual Ring
+                // Visual Circle
                 const ring = document.createElement('a-ring');
-                ring.setAttribute('radius-inner', '0.3');
-                ring.setAttribute('radius-outer', '0.4');
+                ring.setAttribute('radius-inner', '0.35');
+                ring.setAttribute('radius-outer', '0.45');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
+                // Added high contrast for outdoor sun
+                ring.setAttribute('material', 'shader: flat; opacity: 1'); 
                 graveEntity.appendChild(ring);
 
-                // The Number Label
+                // Grave Number
                 const text = document.createElement('a-text');
                 text.setAttribute('value', start + i);
                 text.setAttribute('align', 'center');
-                text.setAttribute('scale', '2 2 2');
-                text.setAttribute('position', '0 0.5 0');
-                text.setAttribute('look-at', '[gps-camera]'); // Essential for readability
+                text.setAttribute('scale', '4 4 4'); 
+                text.setAttribute('position', '0 1 0');
+                text.setAttribute('color', '#ffffff');
+                text.setAttribute('look-at', '[gps-camera]');
                 graveEntity.appendChild(text);
 
                 parent.appendChild(graveEntity);
