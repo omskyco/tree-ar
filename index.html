@@ -4,7 +4,7 @@
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Grave Grid - Fixed Rebuild</title>
+    <title>GPS Grave Grid - Fixed Drift</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
 
@@ -12,31 +12,19 @@
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: transparent; }
         .ui-container {
             position: fixed; top: 0; left: 0; width: 100%;
-            z-index: 1000; padding: 12px; background: rgba(0,0,0,0.85);
+            z-index: 1000; padding: 10px; background: rgba(0,0,0,0.85);
             color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
-        .input-row { display: flex; gap: 5px; justify-content: center; width: 100%; }
-        input[type="number"] { width: 100px; padding: 10px; border-radius: 4px; border: none; font-size: 14px; }
-        button { 
-            width: 80%; padding: 12px; background: #28a745; color: white; 
-            border: none; border-radius: 4px; font-weight: bold; cursor: pointer; 
-            text-transform: uppercase; letter-spacing: 1px;
-        }
-        button:active { background: #1e7e34; }
-        label { font-size: 14px; display: flex; align-items: center; gap: 5px; }
     </style>
 </head>
 
 <body>
     <div class="ui-container">
-        <div class="input-row">
-            <input type="number" id="latInput" value="52.367972" step="0.000001">
-            <input type="number" id="lngInput" value="13.194501" step="0.000001">
+        <div style="display: flex; gap: 5px;">
+            <input type="number" id="latInput" value="52.367972" step="0.000001" style="width: 100px; padding: 8px;">
+            <input type="number" id="lngInput" value="13.194501" step="0.000001" style="width: 100px; padding: 8px;">
         </div>
-        <button id="updateBtn">Update Grid Location</button>
-        <label>
-            <input type="checkbox" id="gpsToggle" checked> Active Location Tracking
-        </label>
+        <button id="updateBtn" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold;">UPDATE POSITION</button>
     </div>
 
     <a-scene 
@@ -44,50 +32,41 @@
         embedded
         arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
 
-        <a-camera gps-camera="minDistance: 1; positionMinAccuracy: 10;" rotation-reader></a-camera>
+        <a-camera 
+            gps-camera="minDistance: 1; positionMinAccuracy: 10; enableHighAccuracy: true;" 
+            rotation-reader>
+        </a-camera>
 
-        <a-entity id="grid-parent"></a-entity>
+        <a-entity id="grid-anchor"></a-entity>
 
     </a-scene>
 
     <script>
         window.onload = () => {
             const updateBtn = document.getElementById('updateBtn');
-            const gridParent = document.getElementById('grid-parent');
-            const gpsToggle = document.getElementById('gpsToggle');
+            const anchor = document.getElementById('grid-anchor');
 
             function rebuild() {
                 const lat = parseFloat(document.getElementById('latInput').value);
                 const lng = parseFloat(document.getElementById('lngInput').value);
-                const isGpsActive = gpsToggle.checked;
 
-                console.log("Rebuilding... GPS:", isGpsActive, "at", lat, lng);
+                // Clear scene
+                while (anchor.firstChild) { anchor.removeChild(anchor.firstChild); }
 
-                // 1. Completely clear the parent
-                while (gridParent.firstChild) { gridParent.removeChild(gridParent.firstChild); }
-
-                // 2. Create the Anchor Entity
-                const anchor = document.createElement('a-entity');
+                // Create fresh entity
+                const tree = document.createElement('a-entity');
+                tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
                 
-                if (isGpsActive) {
-                    // This follows the location-based pattern from the Chialab tutorial
-                    anchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-                } else {
-                    // Fixed position in front of camera for testing
-                    anchor.setAttribute('position', '0 0 -5');
-                }
+                // Add your Grave Circles
+                generateRing(tree, 1, 16, 2.0, "#00ff00");
+                generateRing(tree, 17, 40, 4.0, "#00ccff");
 
-                // 3. Generate Rings inside the anchor
-                generateRing(anchor, 1, 16, 2.0, "#00ff00");
-                generateRing(anchor, 17, 40, 4.0, "#00ccff");
-
-                gridParent.appendChild(anchor);
+                anchor.appendChild(tree);
+                console.log("Anchored to:", lat, lng);
             }
 
             updateBtn.addEventListener('click', rebuild);
-            
-            // Wait 1 second for AR.js sensors to warm up before first build
-            setTimeout(rebuild, 1000);
+            setTimeout(rebuild, 1500); // Warm up sensors
         };
 
         function generateRing(parent, startNum, endNum, dist, color) {
@@ -108,7 +87,6 @@
 
                 container.setAttribute('position', `${x} 0.1 ${z}`);
 
-                // Circle
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.28');
                 ring.setAttribute('radius-outer', '0.35');
@@ -117,14 +95,13 @@
                 ring.setAttribute('material', 'shader: flat;');
                 container.appendChild(ring);
 
-                // Number sitting FLAT inside the circle
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
-                label.setAttribute('width', '3'); 
+                label.setAttribute('width', '3');
                 label.setAttribute('color', '#FFFFFF');
-                label.setAttribute('rotation', '-90 0 0'); // Flat on ground
-                label.setAttribute('position', '0 0.02 0'); // Tiny lift to avoid flicker
+                label.setAttribute('rotation', '-90 0 0');
+                label.setAttribute('position', '0 0.02 0'); 
                 container.appendChild(label);
 
                 parent.appendChild(container);
