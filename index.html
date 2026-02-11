@@ -3,27 +3,34 @@
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>Grave Grid - Production</title>
-    <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
+    <title>GPS Grave Grid - AR.js</title>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        .instructions {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 10; padding: 10px; background: rgba(0,0,0,0.7);
+            color: white; border-radius: 8px; text-align: center; width: 80%;
+        }
+    </style>
 </head>
 
-<body style="margin: 0; overflow: hidden;">
-    <a-scene
+<body>
+    <div class="instructions">
+        Walk toward the coordinates to see the Grave Grid.<br>
+        <b>Inner Square: 1-16</b> | <b>Outer Square: 17-40</b>
+    </div>
+
+    <a-scene 
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
+        arjs="sourceType: webcam; debugUIEnabled: false;">
 
-        <a-camera 
-            gps-camera="minDistance: 1; maxDistance: 1000; gpsMinDistance: 1;" 
-            rotation-reader>
-        </a-camera>
+        <a-camera gps-camera rotation-reader></a-camera>
 
-        <a-entity 
-            id="tree-center" 
-            gps-entity-place="latitude: 52.367967; longitude: 13.194498;">
-        </a-entity>
+        <a-entity id="tree-center" gps-entity-place="latitude: 52.367972; longitude: 13.194501;">
+            </a-entity>
 
     </a-scene>
 
@@ -31,53 +38,61 @@
         window.onload = () => {
             const tree = document.querySelector('#tree-center');
 
-            // INNER SQUARE: Graves 1-16 (2m radius)
-            renderGrid(tree, 1, 16, 2, "#00ff00"); 
+            // --- GRID CONFIGURATION ---
+            // Inner Square (16 graves)
+            generateRing(tree, 1, 16, 2.0, "#99ff99"); 
             
-            // OUTER SQUARE: Graves 17-40 (4m radius)
-            renderGrid(tree, 17, 40, 4, "#00ffff");
+            // Outer Square (24 graves)
+            generateRing(tree, 17, 40, 4.0, "#99ccff");
         };
 
-        function renderGrid(parent, start, end, radius, color) {
-            const count = (end - start) + 1;
-            const perSide = count / 4;
-            const step = (radius * 2) / perSide;
+        /**
+         * Generates a square perimeter of circles.
+         * @param {Element} parent - The tree entity.
+         * @param {Number} startNum - Starting label index.
+         * @param {Number} total - Total circles in this ring.
+         * @param {Number} dist - Distance from center (radius).
+         * @param {String} color - Hex color for the ring.
+         */
+        function generateRing(parent, startNum, endNum, dist, color) {
+            const total = (endNum - startNum) + 1;
+            const perSide = total / 4;
+            const step = (dist * 2) / perSide;
 
-            for (let i = 0; i < count; i++) {
-                const graveEntity = document.createElement('a-entity');
+            for (let i = 0; i < total; i++) {
+                const container = document.createElement('a-entity');
                 let x = 0, z = 0;
+                
                 const side = Math.floor(i / perSide);
-                const progress = (i % perSide) * step - radius;
+                const progress = (i % perSide) * step - dist;
 
-                // North = -Z, East = +X, South = +Z, West = -X
-                if (side === 0) { x = progress; z = -radius; } 
-                else if (side === 1) { x = radius; z = progress; } 
-                else if (side === 2) { x = -progress; z = radius; } 
-                else if (side === 3) { x = -radius; z = -progress; }
+                // Position Logic (Standard Top-Right-Bottom-Left)
+                // In AR.js, -Z is North.
+                if (side === 0) { x = progress; z = -dist; } // North side
+                else if (side === 1) { x = dist; z = progress; } // East side
+                else if (side === 2) { x = -progress; z = dist; } // South side
+                else if (side === 3) { x = -dist; z = -progress; } // West side
 
-                graveEntity.setAttribute('position', `${x} 0 ${z}`);
+                container.setAttribute('position', `${x} 0.1 ${z}`);
 
-                // Visual Circle
+                // 1. The Grave Circle (Ring)
                 const ring = document.createElement('a-ring');
-                ring.setAttribute('radius-inner', '0.35');
-                ring.setAttribute('radius-outer', '0.45');
+                ring.setAttribute('radius-inner', '0.3');
+                ring.setAttribute('radius-outer', '0.35');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
-                // Added high contrast for outdoor sun
-                ring.setAttribute('material', 'shader: flat; opacity: 1'); 
-                graveEntity.appendChild(ring);
+                container.appendChild(ring);
 
-                // Grave Number
-                const text = document.createElement('a-text');
-                text.setAttribute('value', start + i);
-                text.setAttribute('align', 'center');
-                text.setAttribute('scale', '4 4 4'); 
-                text.setAttribute('position', '0 1 0');
-                text.setAttribute('color', '#ffffff');
-                text.setAttribute('look-at', '[gps-camera]');
-                graveEntity.appendChild(text);
+                // 2. The Grave Number (Text)
+                const label = document.createElement('a-text');
+                label.setAttribute('value', startNum + i);
+                label.setAttribute('align', 'center');
+                label.setAttribute('scale', '1.5 1.5 1.5');
+                label.setAttribute('position', '0 0.5 0'); // Floats slightly above circle
+                label.setAttribute('look-at', '[gps-camera]'); // Faces user
+                container.appendChild(label);
 
-                parent.appendChild(graveEntity);
+                parent.appendChild(container);
             }
         }
     </script>
