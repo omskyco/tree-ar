@@ -58,49 +58,51 @@
         const camera = document.querySelector('[gps-camera]');
         let gpsReady = false;
 
-        // Wait until scene is fully loaded
-        scene.addEventListener('loaded', () => {
-            console.log('Scene loaded. Waiting for GPS fix...');
-            
-            // Wait for first GPS fix
-            camera.addEventListener('gps-camera-update-position', () => {
-                console.log('GPS ready');
-                gpsReady = true;
-                rebuildGrid();
-            }, { once: true });
-        });
+       scene.addEventListener('loaded', () => {
+    console.log('Scene loaded ✅');
 
-        startBtn.addEventListener('click', () => {
-            overlay.style.display = 'none';
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().catch(console.error);
-            }
-        });
+    camera.addEventListener('gps-camera-update-position', () => {
+        console.log('GPS fix acquired ✅');
+        gpsReady = true;
+        rebuildGrid();
+    }, { once: true });
+});
 
-        updateBtn.addEventListener('click', () => {
-            if (!gpsReady) return console.warn("GPS not ready yet!");
-            rebuildGrid();
-        });
+startBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    console.log('Start button clicked');
 
-        function rebuildGrid() {
-            const lat = parseFloat(document.getElementById('latInput').value);
-            const lng = parseFloat(document.getElementById('lngInput').value);
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(() => console.log('Device orientation permission granted'))
+            .catch(e => console.error('Device orientation permission denied', e));
+    }
+});
 
-            // Clear previous entities
-            while (gridParent.firstChild) gridParent.removeChild(gridParent.firstChild);
+updateBtn.addEventListener('click', () => {
+    console.log('Update button clicked');
+    if (!gpsReady) return console.warn("GPS not ready yet!");
+    rebuildGrid();
+});
 
-            // Create new GPS anchor
-            const newAnchor = document.createElement('a-entity');
-            newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-            
-            // Generate rings
-            generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
-            generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
+function rebuildGrid() {
+    alert("Rebuilding grid...");
+    const lat = parseFloat(document.getElementById('latInput').value);
+    const lng = parseFloat(document.getElementById('lngInput').value);
+    console.log("Grid rebuild called at:", lat, lng);
 
-            // Attach to scene
-            gridParent.appendChild(newAnchor);
-            console.log("Grid created at:", lat, lng);
-        }
+    while (gridParent.firstChild) gridParent.removeChild(gridParent.firstChild);
+
+    const newAnchor = document.createElement('a-entity');
+    newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+    
+    generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
+    generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
+
+    gridParent.appendChild(newAnchor);
+    console.log('Grid added to scene ✅');
+}
+
 
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
