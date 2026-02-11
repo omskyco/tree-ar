@@ -1,172 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AR Grave Grid - North Aligned</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.150.1/build/three.module.js" } }
-    </script>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <title>GPS Grave Grid - Dynamic Input</title>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
-        #instructions {
-            position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
-            color: white; background: rgba(0,0,0,0.75); padding: 15px;
-            border-radius: 10px; z-index: 999; text-align: center; width: 85%;
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        .ui-panel {
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 1000; padding: 15px; background: rgba(0,0,0,0.8);
+            color: white; display: flex; flex-direction: column; gap: 8px;
+            font-size: 14px;
         }
+        .input-row { display: flex; align-items: center; gap: 10px; }
+        input { 
+            padding: 5px; border-radius: 4px; border: none; width: 100px;
+            font-family: monospace;
+        }
+        button {
+            padding: 8px; border-radius: 4px; border: none;
+            background: #28a745; color: white; font-weight: bold; cursor: pointer;
+        }
+        button:active { background: #218838; }
     </style>
 </head>
+
 <body>
-    <div id="instructions">1. START AR<br>2. Find floor<br>3. Tap the tree trunk base</div>
+    <div class="ui-panel">
+        <div class="input-row">
+            <label>Lat:</label>
+            <input type="number" id="latInput" value="52.367967" step="0.000001">
+            <label>Long:</label>
+            <input type="number" id="lngInput" value="13.194498" step="0.000001">
+            <button onclick="updateLocation()">Update</button>
+        </div>
+        <div style="font-size: 11px; opacity: 0.8;">
+            Grid: Inner 1-16 (Green) | Outer 17-40 (Blue)
+        </div>
+    </div>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'https://unpkg.com/three@0.150.1/examples/jsm/webxr/ARButton.js';
+    <a-scene 
+        vr-mode-ui="enabled: false"
+        embedded
+        arjs="sourceType: webcam; debugUIEnabled: false;">
 
-        let scene, camera, renderer, reticle;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
-        let northOffset = 0;
+        <a-camera gps-camera rotation-reader></a-camera>
 
-        // Listen for phone compass to find North
-        window.addEventListener('deviceorientationabsolute', (event) => {
-            if (event.alpha !== null) {
-                // alpha is the rotation around the z-axis (compass heading)
-                northOffset = THREE.MathUtils.degToRad(event.alpha);
+        <a-entity id="tree-center">
+            </a-entity>
+    </a-scene>
+
+    <script>
+        // Main function to update the AR location and regenerate the grid
+        function updateLocation() {
+            const lat = document.getElementById('latInput').value;
+            const lng = document.getElementById('lngInput').value;
+            const tree = document.querySelector('#tree-center');
+
+            // Set the geo-coordinates for the parent entity
+            tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+
+            // Clear any existing circles to prevent overlapping
+            while (tree.firstChild) {
+                tree.removeChild(tree.firstChild);
             }
-        }, true);
 
-        init();
-        animate();
+            console.log(`Grid moved to: ${lat}, ${lng}`);
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 30);
-
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            scene.add(light);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            document.body.appendChild(ARButton.createButton(renderer, { 
-                requiredFeatures: ['hit-test'],
-                optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: document.body }
-            }));
-
-            // Reticle for placement
-            reticle = new THREE.Mesh(
-                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-            );
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
-
-            const controller = renderer.xr.getController(0);
-            controller.addEventListener('select', onSelect);
-            scene.add(controller);
-        }
-
-        function createGraveCircle(number, color) {
-            const group = new THREE.Group();
+            // Generate Inner Square (16 graves) - Radius 2m
+            generateRing(tree, 1, 16, 2.0, "#99ff99"); 
             
-            // The Circle on the ground
-            const circleGeom = new THREE.RingGeometry(0.25, 0.3, 32).rotateX(-Math.PI / 2);
-            const circleMat = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide });
-            const circle = new THREE.Mesh(circleGeom, circleMat);
-            group.add(circle);
-
-            return group;
+            // Generate Outer Square (24 graves) - Radius 4m
+            generateRing(tree, 17, 40, 4.0, "#99ccff");
         }
 
-        function onSelect() {
-    if (reticle.visible) {
-        // 1. Create a permanent anchor group
-        const gridAnchor = new THREE.Group();
-        
-        // 2. IMPORTANT: Manually copy the position and orientation from the reticle's matrix
-        // This 'bakes' the current floor position into the gridAnchor
-        gridAnchor.position.setFromMatrixPosition(reticle.matrix);
-        gridAnchor.quaternion.setFromRotationMatrix(reticle.matrix);
-        
-        // 3. Apply the North Orientation offset
-        // We use rotateY so it spins around the center of the tree
-        gridAnchor.rotateY(northOffset);
-
-        // 4. Generate the 40 graves as children of this anchor
-        generateSquareRing(gridAnchor, 1, 16, 1.5, 0x99ff99); // Inner
-        generateSquareRing(gridAnchor, 17, 40, 2.8, 0x99ccff); // Outer
-
-        // 5. Add to the SCENE, not the camera or the controller
-        scene.add(gridAnchor);
-        
-        // 6. Disable the reticle so you don't accidentally move the grid
-        reticle.visible = false;
-        hitTestSource = null; // Stops searching for floor once anchored
-        
-        document.getElementById('instructions').innerHTML = "GRID LOCKED TO FLOOR";
-    }
-}
-
-        function generateSquareRing(parentGroup, startNum, endNum, distance, color) {
+        function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
             const perSide = total / 4;
-            const step = (distance * 2) / perSide;
+            const step = (dist * 2) / perSide;
 
             for (let i = 0; i < total; i++) {
-                const grave = createGraveCircle(startNum + i, color);
+                const container = document.createElement('a-entity');
                 let x = 0, z = 0;
                 
                 const side = Math.floor(i / perSide);
-                const progress = (i % perSide) * step - distance;
+                const progress = (i % perSide) * step - dist;
 
-                if (side === 0) { x = progress; z = -distance; } // North side
-                else if (side === 1) { x = distance; z = progress; } // East side
-                else if (side === 2) { x = -progress; z = distance; } // South side
-                else if (side === 3) { x = -distance; z = -progress; } // West side
+                // North is -Z in AR.js
+                if (side === 0) { x = progress; z = -dist; } // North
+                else if (side === 1) { x = dist; z = progress; } // East
+                else if (side === 2) { x = -progress; z = dist; } // South
+                else if (side === 3) { x = -dist; z = -progress; } // West
 
-                grave.position.set(x, 0.01, z); // Slightly above floor to prevent flickering
-                parentGroup.add(grave);
+                // Position slightly off ground to avoid z-fighting/flicker
+                container.setAttribute('position', `${x} 0.1 ${z}`);
+
+                // The Circle Ring
+                const ring = document.createElement('a-ring');
+                ring.setAttribute('radius-inner', '0.3');
+                ring.setAttribute('radius-outer', '0.35');
+                ring.setAttribute('color', color);
+                ring.setAttribute('rotation', '-90 0 0');
+                container.appendChild(ring);
+
+                // The Number Label
+                const label = document.createElement('a-text');
+                label.setAttribute('value', startNum + i);
+                label.setAttribute('align', 'center');
+                label.setAttribute('scale', '2 2 2');
+                label.setAttribute('position', '0 0.6 0');
+                // Ensures text faces the phone camera
+                label.setAttribute('look-at', '[gps-camera]'); 
+                container.appendChild(label);
+
+                parent.appendChild(container);
             }
         }
 
-        function animate() {
-            renderer.setAnimationLoop(render);
-        }
-
-        function render(timestamp, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
-                const referenceSpace = renderer.xr.getReferenceSpace();
-
-                if (hitTestSourceRequested === false) {
-                    session.requestReferenceSpace('viewer').then((refSpace) => {
-                        session.requestHitTestSource({ space: refSpace }).then((source) => {
-                            hitTestSource = source;
-                        });
-                    });
-                    hitTestSourceRequested = true;
-                }
-
-                if (hitTestSource) {
-                    const hitTestResults = frame.getHitTestResults(hitTestSource);
-                    if (hitTestResults.length > 0) {
-                        const hit = hitTestResults[0];
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-                    } else {
-                        reticle.visible = false;
-                    }
-                }
-            }
-            renderer.render(scene, camera);
-        }
+        // Initialize grid on load
+        window.onload = () => {
+            updateLocation();
+        };
     </script>
 </body>
 </html>
