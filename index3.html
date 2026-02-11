@@ -151,8 +151,8 @@
                 heading = 360 - event.alpha;
             }
 
-            compassHeading = (heading + 180) % 360; 
-    document.getElementById('debug').innerText = `Compass: ${Math.round(heading)}°`;
+            compassHeading = heading;
+            document.getElementById('debug').innerText = `North: ${Math.round(heading)}°`;
         }
 
         // --- THE "DROP" FUNCTION ---
@@ -189,50 +189,30 @@
             }
         }
 
-        // --- FIXED GENERATOR LOGIC (Matches Bild.jpg) ---
-function generateSquareRing(parent, startNum, endNum, dist, color) {
-    const total = (endNum - startNum) + 1;
-    
-    // Manual mapping for the unique layout in the image
-    // Inner Ring (1-16)
-    if (startNum === 1) {
-        const innerMap = [
-            {n: 1, x: 0, z: -dist}, {n: 2, x: 1, z: -dist}, {n: 3, x: 2, z: -dist}, // N
-            {n: 4, x: 2, z: -1}, {n: 5, x: 2, z: 0}, {n: 6, x: 2, z: 1}, {n: 7, x: 2, z: 2}, // E
-            {n: 8, x: 1, z: 2}, {n: 9, x: 0, z: 2}, {n: 10, x: -1, z: 2}, {n: 11, x: -2, z: 2}, // S
-            {n: 12, x: -2, z: 1}, {n: 13, x: -2, z: 0}, {n: 14, x: -2, z: -1}, {n: 15, x: -2, z: -2}, // W
-            {n: 16, x: -1, z: -dist} // Wrap North
-        ];
-        innerMap.forEach(pos => {
-            const marker = createMarker(pos.n, color);
-            marker.position.set(pos.x * 0.8, 0, pos.z * 0.8);
-            parent.add(marker);
-        });
-        return;
-    }
+        // --- GENERATOR LOGIC ---
+        function generateSquareRing(parent, startNum, endNum, dist, color) {
+            const total = (endNum - startNum) + 1;
+            const perSide = total / 4;
+            const step = (dist * 2) / perSide;
 
-    // Outer Ring (17-40) - Adjusting to match the specific corners in Bild.jpg
-    const step = (dist * 2) / 6; // Dividing the square into segments
-    for (let i = 0; i < total; i++) {
-        const num = startNum + i;
-        let x = 0, z = 0;
+            for (let i = 0; i < total; i++) {
+                const marker = createMarker(startNum + i, color);
+                let x = 0, z = 0;
 
-        // Positioning based on the provided diagram
-        if (num >= 17 && num <= 20) { // Top Row (North)
-            z = -dist; x = (num - 18.5) * (dist/2); 
-        } else if (num >= 21 && num <= 25) { // Right Row (East)
-            x = dist; z = (num - 23) * (dist/3);
-        } else if (num >= 26 && num <= 31) { // Bottom Row (South) - handling the duplicate '30'
-            z = dist; x = (28.5 - num) * (dist/3);
-        } else { // Left Row (West)
-            x = -dist; z = (35.5 - num) * (dist/3);
+                const side = Math.floor(i / perSide);
+                const progress = (i % perSide) * step - dist;
+
+                // Adjusting sides so the first numbers appear at "North" (-Z)
+                // Based on standard compass: -Z is North.
+                if (side === 0) { x = progress; z = -dist; } // North Line
+                else if (side === 1) { x = dist; z = progress; } // East Line
+                else if (side === 2) { x = -progress; z = dist; } // South Line
+                else if (side === 3) { x = -dist; z = -progress; } // West Line
+
+                marker.position.set(x, 0, z);
+                parent.add(marker);
+            }
         }
-
-        const marker = createMarker(num, color);
-        marker.position.set(x, 0, z);
-        parent.add(marker);
-    }
-}
 
         function createMarker(number, colorHex) {
             const group = new THREE.Group();
