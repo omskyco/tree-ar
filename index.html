@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>AR Grave Grid - Compass Locked</title>
+    <title>Grave Grid - Manual Lock + Compass</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -9,222 +9,255 @@
         { "imports": { "three": "https://unpkg.com/three@0.150.1/build/three.module.js" } }
     </script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Arial', sans-serif; }
+        
+        /* The UI Overlay */
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 2000;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; text-align: center;
+            pointer-events: none; z-index: 999;
+            display: flex; flex-direction: column; justify-content: space-between; align-items: center;
         }
+
         #instructions {
-            position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
-            color: lime; background: rgba(0,0,0,0.5); padding: 10px 20px;
-            border-radius: 20px; z-index: 999; text-align: center; font-weight: bold;
-            display: none;
+            background: rgba(0,0,0,0.6); color: white; padding: 15px; margin-top: 20px;
+            border-radius: 20px; text-align: center; font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(5px);
         }
-        button { padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px;}
+
+        /* The Lock Button */
+        #lockBtn {
+            pointer-events: auto; /* Enable clicking */
+            background: #28a745; color: white;
+            font-size: 18px; font-weight: bold;
+            padding: 15px 40px; border: none; border-radius: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 15px rgba(0,255,0,0.4);
+            transition: transform 0.1s;
+            display: none; /* Hidden until AR starts */
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        #lockBtn:active { transform: scale(0.95); background: #1e7e34; }
+        
+        #debug {
+            position: absolute; top: 10px; right: 10px; color: yellow; font-size: 12px; font-family: monospace;
+        }
     </style>
 </head>
 <body>
 
     <div id="overlay">
-        <h1>Grave Grid Setup</h1>
-        <p>1. Stand near the Tree<br>2. Scan floor until grid appears<br>3. Grid auto-aligns North<br>4. Tap to LOCK</p>
-        <button id="startBtn">START AR</button>
+        <div id="instructions">
+            1. Stand at Tree Center<br>
+            2. Scan floor until circle appears<br>
+            3. Tap button to LOCK
+        </div>
+        <div id="debug">Compass: Waiting...</div>
+        <button id="lockBtn">LOCK GRID HERE</button>
     </div>
-
-    <div id="instructions">Scanning Floor...</div>
 
     <script type="module">
         import * as THREE from 'three';
         import { ARButton } from 'https://unpkg.com/three@0.150.1/examples/jsm/webxr/ARButton.js';
 
-        let scene, camera, renderer;
-        let reticle;             // The helper that sits on the floor
-        let ghostGrid;           // The transparent preview
+        let container;
+        let camera, scene, renderer;
+        let controller;
+        let reticle;
         let hitTestSource = null;
         let hitTestSourceRequested = false;
-        let isLocked = false;    // Have we dropped it yet?
-        let compassHeading = 0;  // Real-world North offset
+        
+        // Compass Variables
+        let compassHeading = 0; 
+        let gridLocked = false;
 
-        const startBtn = document.getElementById('startBtn');
-        const overlay = document.getElementById('overlay');
-        const instructionUI = document.getElementById('instructions');
-
-        // --- 1. SETUP & EVENTS ---
-
-        startBtn.addEventListener('click', async () => {
-            overlay.style.display = 'none';
-            instructionUI.style.display = 'block';
-
-            // Request Compass Permission (iOS 13+)
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    await DeviceOrientationEvent.requestPermission();
-                } catch (e) { console.error(e); }
-            }
-
-            // Start listening for North
-            window.addEventListener('deviceorientation', handleOrientation, true);
-            
-            init();
-            animate();
-        });
-
-        function handleOrientation(event) {
-            // Calculate compass heading (0 to 360)
-            if (event.webkitCompassHeading) {
-                // iOS
-                compassHeading = event.webkitCompassHeading;
-            } else if (event.alpha) {
-                // Android (alpha is usually 0 at initial launch direction, requires calibration)
-                compassHeading = 360 - event.alpha; 
-            }
-        }
+        init();
+        animate();
 
         function init() {
-            const container = document.createElement('div');
+            container = document.createElement('div');
             document.body.appendChild(container);
 
             scene = new THREE.Scene();
 
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
+            // Lighting
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
             light.position.set(0.5, 1, 0.25);
             scene.add(light);
 
+            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // Add the AR Button
-            document.body.appendChild(ARButton.createButton(renderer, { 
-                requiredFeatures: ['hit-test'],
-                optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: document.body }
-            }));
+            // AR Button
+            const arButton = ARButton.createButton(renderer, { 
+                requiredFeatures: ['hit-test', 'dom-overlay'], 
+                domOverlay: { root: document.getElementById('overlay') } 
+            });
+            document.body.appendChild(arButton);
 
-            // --- 2. CREATE THE RETICLE ---
+            // Show our custom Lock button when AR session starts
+            arButton.addEventListener('click', () => {
+                document.getElementById('lockBtn').style.display = 'block';
+                // Request Compass Permission (iOS)
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(response => {
+                            if (response === 'granted') window.addEventListener('deviceorientation', handleOrientation);
+                        })
+                        .catch(console.error);
+                } else {
+                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                    window.addEventListener('deviceorientation', handleOrientation, true);
+                }
+            });
+
+            // The Reticle (The "Cursor" on the floor)
             reticle = new THREE.Mesh(
                 new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0xffffff })
+                new THREE.MeshBasicMaterial({ color: 0xffffff }) // White ring
             );
             reticle.matrixAutoUpdate = false;
             reticle.visible = false;
             scene.add(reticle);
 
-            // --- 3. CREATE THE GHOST GRID (Attached to Reticle initially) ---
-            ghostGrid = new THREE.Group();
-            
-            // Generate the rings (1-16 Inner, 17-40 Outer)
-            // Passing 'true' for isGhost makes them semi-transparent
-            generateRing(ghostGrid, 1, 16, 2.0, 0x00ff00, true); 
-            generateRing(ghostGrid, 17, 40, 4.0, 0x00ccff, true);
-
-            scene.add(ghostGrid); // We add it to scene, but will move it to reticle position every frame
-
-            // Tap Listener
-            const controller = renderer.xr.getController(0);
-            controller.addEventListener('select', onSelect);
+            // Controller for hit testing
+            controller = renderer.xr.getController(0);
             scene.add(controller);
+
+            // Hook up the Lock Button
+            document.getElementById('lockBtn').addEventListener('click', onLockGrid);
+            
+            // Handle Window Resize
+            window.addEventListener('resize', onWindowResize);
         }
 
-        // --- 4. TAP TO LOCK LOGIC ---
-        function onSelect() {
-            if (reticle.visible && !isLocked) {
-                // Lock it!
-                isLocked = true;
-                
-                // Make the grid solid
-                ghostGrid.traverse((child) => {
-                    if (child.isMesh) {
-                        child.material.opacity = 1.0;
-                        child.material.transparent = false;
-                    }
-                    // Show text labels now that we are locked (optional, or keep them visible)
-                    if (child.isSprite) {
-                        child.visible = true;
-                    }
-                });
+        // --- COMPASS LOGIC ---
+        function handleOrientation(event) {
+            // Calculate Compass Heading (0 = North, 90 = East)
+            let heading = 0;
+            
+            if (event.webkitCompassHeading) {
+                // iOS
+                heading = event.webkitCompassHeading;
+            } else if (event.alpha) {
+                // Android (alpha is roughly 0 at North, but can vary by device)
+                // We use (360 - alpha) to map it to standard compass degrees
+                heading = 360 - event.alpha;
+            }
 
-                instructionUI.innerHTML = "GRID LOCKED ✅";
-                instructionUI.style.color = "#00ff00";
+            compassHeading = heading;
+            document.getElementById('debug').innerText = `North: ${Math.round(heading)}°`;
+        }
+
+        // --- THE "DROP" FUNCTION ---
+        function onLockGrid() {
+            if (reticle.visible && !gridLocked) {
                 
-                // Stop the hit test loop to save battery
-                hitTestSourceRequested = false; 
-                hitTestSource = null;
+                // 1. Create the Grid Group
+                const gridGroup = new THREE.Group();
+                
+                // 2. Place it exactly where the Reticle is
+                gridGroup.position.setFromMatrixPosition(reticle.matrix);
+                
+                // 3. APPLY NORTH ROTATION
+                // Three.js '0' rotation is usually looking down -Z.
+                // We rotate the grid around the Y axis based on the compass.
+                // Converting degrees to radians and applying offset.
+                // Note: You might need to tweak the offset (+ 90 or -90) depending on exact device start orientation
+                const radians = THREE.MathUtils.degToRad(compassHeading);
+                gridGroup.rotation.y = -radians; 
+
+                // 4. Generate the Graves
+                // Inner Ring (1-16)
+                generateSquareRing(gridGroup, 1, 16, 1.5, 0x00ff00); 
+                // Outer Ring (17-40)
+                generateSquareRing(gridGroup, 17, 40, 3.0, 0x00ccff);
+
+                scene.add(gridGroup);
+
+                // 5. Cleanup UI
+                gridLocked = true;
                 reticle.visible = false;
+                document.getElementById('instructions').innerText = "GRID LOCKED ✅";
+                document.getElementById('lockBtn').style.display = 'none';
             }
         }
 
-        // --- 5. GRID GENERATION (Three.js Style) ---
-        function generateRing(parent, startNum, endNum, dist, colorHex, isGhost) {
+        // --- GENERATOR LOGIC ---
+        function generateSquareRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
             const perSide = total / 4;
             const step = (dist * 2) / perSide;
 
             for (let i = 0; i < total; i++) {
-                const wrapper = new THREE.Group();
+                const marker = createMarker(startNum + i, color);
                 let x = 0, z = 0;
+
                 const side = Math.floor(i / perSide);
                 const progress = (i % perSide) * step - dist;
 
-                if (side === 0) { x = progress; z = -dist; } 
-                else if (side === 1) { x = dist; z = progress; } 
-                else if (side === 2) { x = -progress; z = dist; } 
-                else if (side === 3) { x = -dist; z = -progress; }
+                // Adjusting sides so the first numbers appear at "North" (-Z)
+                // Based on standard compass: -Z is North.
+                if (side === 0) { x = progress; z = -dist; } // North Line
+                else if (side === 1) { x = dist; z = progress; } // East Line
+                else if (side === 2) { x = -progress; z = dist; } // South Line
+                else if (side === 3) { x = -dist; z = -progress; } // West Line
 
-                wrapper.position.set(x, 0, z);
-
-                // Circle
-                const geometry = new THREE.RingGeometry(0.28, 0.35, 32).rotateX(-Math.PI / 2);
-                const material = new THREE.MeshBasicMaterial({ 
-                    color: colorHex, 
-                    side: THREE.DoubleSide,
-                    transparent: isGhost,
-                    opacity: isGhost ? 0.5 : 1.0 
-                });
-                const mesh = new THREE.Mesh(geometry, material);
-                wrapper.add(mesh);
-
-                // Number (using CanvasTexture because loading fonts is slow)
-                const label = createTextLabel((startNum + i).toString());
-                label.position.set(0, 0.05, 0); // slightly up
-                // Rotate sprite to lie flat? Sprites always face camera usually. 
-                // For floor text in ThreeJS, simpler to use a Mesh with texture.
-                label.rotation.x = -Math.PI / 2; 
-                wrapper.add(label);
-
-                parent.add(wrapper);
+                marker.position.set(x, 0, z);
+                parent.add(marker);
             }
         }
 
-        function createTextLabel(text) {
+        function createMarker(number, colorHex) {
+            const group = new THREE.Group();
+
+            // 1. The Circle
+            const geometry = new THREE.RingGeometry(0.28, 0.35, 32);
+            geometry.rotateX(-Math.PI / 2); // Lay flat
+            const material = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+            const ring = new THREE.Mesh(geometry, material);
+            group.add(ring);
+
+            // 2. The Text (Using a Canvas Texture for numbers because it's lighter than loading a 3D font)
             const canvas = document.createElement('canvas');
-            canvas.width = 128; 
-            canvas.height = 128; 
+            canvas.width = 128; canvas.height = 128;
             const ctx = canvas.getContext('2d');
             
             // Draw number
-            ctx.fillStyle = 'rgba(0,0,0,0)'; // transparent bg
-            ctx.fillRect(0,0,128,128);
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 80px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, 64, 64);
+            ctx.fillStyle = "rgba(0,0,0,0)"; // Transparent background
+            ctx.fillRect(0, 0, 128, 128);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 80px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(number, 64, 64);
 
             const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-            const geometry = new THREE.PlaneGeometry(0.6, 0.6);
-            const mesh = new THREE.Mesh(geometry, material);
+            const labelGeom = new THREE.PlaneGeometry(0.5, 0.5);
+            labelGeom.rotateX(-Math.PI / 2); // Lay flat
+            const labelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+            const label = new THREE.Mesh(labelGeom, labelMat);
             
-            return mesh;
+            // Lift slightly so it doesn't z-fight with ground
+            label.position.y = 0.02;
+            group.add(label);
+
+            return group;
         }
 
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- RENDER LOOP ---
         function animate() {
             renderer.setAnimationLoop(render);
         }
@@ -234,50 +267,23 @@
                 const session = renderer.xr.getSession();
                 const referenceSpace = renderer.xr.getReferenceSpace();
 
-                // 1. Setup Hit Test if needed
                 if (hitTestSourceRequested === false) {
                     session.requestReferenceSpace('viewer').then((refSpace) => {
                         session.requestHitTestSource({ space: refSpace }).then((source) => {
                             hitTestSource = source;
                         });
                     });
-                    session.addEventListener('end', () => {
-                        hitTestSourceRequested = false;
-                        hitTestSource = null;
-                    });
                     hitTestSourceRequested = true;
                 }
 
-                // 2. Perform Hit Test
-                if (hitTestSource && !isLocked) {
+                if (hitTestSource && !gridLocked) {
                     const hitTestResults = frame.getHitTestResults(hitTestSource);
                     if (hitTestResults.length > 0) {
                         const hit = hitTestResults[0];
-                        const pose = hit.getPose(referenceSpace);
-                        
                         reticle.visible = true;
-                        reticle.matrix.fromArray(pose.transform.matrix);
-                        instructionUI.innerText = "Align Grid with Tree -> Tap to Lock";
-
-                        // 3. Move Ghost Grid to Reticle Position
-                        // We decompose the matrix to get position, but we handle rotation manually via compass
-                        const position = new THREE.Vector3();
-                        const quaternion = new THREE.Quaternion();
-                        const scale = new THREE.Vector3();
-                        reticle.matrix.decompose(position, quaternion, scale);
-                        
-                        ghostGrid.position.copy(position);
-                        
-                        // 4. APPLY COMPASS ROTATION
-                        // Convert compass heading to radians. 
-                        // Note: This needs tweaking based on device (iOS vs Android)
-                        // This logic rotates the grid so 'North' in the grid aligns with real North
-                        const angle = THREE.MathUtils.degToRad(-compassHeading); 
-                        ghostGrid.rotation.set(0, angle, 0);
-
+                        reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
                     } else {
                         reticle.visible = false;
-                        instructionUI.innerText = "Find the floor...";
                     }
                 }
             }
