@@ -3,107 +3,75 @@
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>GPS Grave Grid - Verified Location</title>
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <title>AR.js Location Based - Grave Grid</title>
+    <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
-    
-    <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        .instructions {
-            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 10; padding: 10px; background: rgba(0,0,0,0.8);
-            color: white; border-radius: 8px; text-align: center; width: 85%;
-        }
-        .distance-hud {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 10; padding: 10px; background: #28a745;
-            color: white; border-radius: 20px; font-weight: bold;
-        }
-    </style>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
 </head>
 
-<body>
-    <div class="instructions">
-        Target: 52.367972, 13.194501<br>
-        <span id="status">Waiting for GPS...</span>
-    </div>
-    
-    <div class="distance-hud" id="hud">Distance: ---</div>
-
-    <a-scene 
+<body style="margin: 0; overflow: hidden;">
+    <a-scene
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
+        arjs="sourceType: webcam; debugUIEnabled: false;">
 
-        <a-camera gps-camera="minDistance: 0; maxDistance: 1000;" rotation-reader></a-camera>
+        <a-camera gps-camera rotation-reader></a-camera>
 
-        <a-entity id="tree-center" gps-entity-place="latitude: 52.367972; longitude: 13.194501;"></a-entity>
+        <a-entity id="tree-center" gps-entity-place="latitude: 52.367967; longitude: 13.194498;">
+            </a-entity>
 
     </a-scene>
 
     <script>
-        const tree = document.querySelector('#tree-center');
-        const hud = document.getElementById('hud');
-        const status = document.getElementById('status');
-
         window.onload = () => {
-            // Wait for the GPS camera to start before building the grid
-            window.addEventListener('gps-camera-update-position', (e) => {
-                status.innerText = "GPS Active!";
-            });
+            const tree = document.querySelector('#tree-center');
 
-            // --- GRID CONFIGURATION ---
-            generateRing(tree, 1, 16, 2.0, "#99ff99"); // Inner
-            generateRing(tree, 17, 40, 4.0, "#99ccff"); // Outer
-
-            // Distance monitoring logic
-            setInterval(() => {
-                const distance = tree.getAttribute('distanceMsg');
-                if (distance) {
-                    hud.innerText = `Distance: ${distance}`;
-                }
-            }, 1000);
+            // Generate Inner Square (16 graves) at 2 meter radius
+            renderGrid(tree, 1, 16, 2, "#99ff99"); 
+            
+            // Generate Outer Square (24 graves) at 4 meter radius
+            renderGrid(tree, 17, 40, 4, "#99ccff");
         };
 
-        function generateRing(parent, startNum, endNum, dist, color) {
-            const total = (endNum - startNum) + 1;
-            const perSide = total / 4;
-            const step = (dist * 2) / perSide;
+        function renderGrid(parent, start, end, radius, color) {
+            const count = (end - start) + 1;
+            const perSide = count / 4;
+            const step = (radius * 2) / perSide;
 
-            for (let i = 0; i < total; i++) {
-                const container = document.createElement('a-entity');
-                let x = 0, z = 0;
+            for (let i = 0; i < count; i++) {
+                const graveEntity = document.createElement('a-entity');
                 
+                let x = 0, z = 0;
                 const side = Math.floor(i / perSide);
-                const progress = (i % perSide) * step - dist;
+                const progress = (i % perSide) * step - radius;
 
-                if (side === 0) { x = progress; z = -dist; } 
-                else if (side === 1) { x = dist; z = progress; } 
-                else if (side === 2) { x = -progress; z = dist; } 
-                else if (side === 3) { x = -dist; z = -progress; }
+                // Positioning logic matching North/East/South/West
+                if (side === 0) { x = progress; z = -radius; } 
+                else if (side === 1) { x = radius; z = progress; } 
+                else if (side === 2) { x = -progress; z = radius; } 
+                else if (side === 3) { x = -radius; z = -progress; }
 
-                container.setAttribute('position', `${x} 0.2 ${z}`);
+                // Set position in METERS relative to the tree-center GPS point
+                graveEntity.setAttribute('position', `${x} 0 ${z}`);
 
-                // Circle
+                // The Visual Ring
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.3');
-                ring.setAttribute('radius-outer', '0.35');
+                ring.setAttribute('radius-outer', '0.4');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
-                ring.setAttribute('material', 'transparent: true; opacity: 0.8');
-                container.appendChild(ring);
+                graveEntity.appendChild(ring);
 
-                // Number
-                const label = document.createElement('a-text');
-                label.setAttribute('value', startNum + i);
-                label.setAttribute('align', 'center');
-                label.setAttribute('scale', '2 2 2');
-                label.setAttribute('position', '0 0.7 0');
-                label.setAttribute('look-at', '[gps-camera]'); 
-                container.appendChild(label);
+                // The Number Label
+                const text = document.createElement('a-text');
+                text.setAttribute('value', start + i);
+                text.setAttribute('align', 'center');
+                text.setAttribute('scale', '2 2 2');
+                text.setAttribute('position', '0 0.5 0');
+                text.setAttribute('look-at', '[gps-camera]'); // Essential for readability
+                graveEntity.appendChild(text);
 
-                parent.appendChild(container);
+                parent.appendChild(graveEntity);
             }
         }
     </script>
