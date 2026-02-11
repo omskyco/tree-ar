@@ -1,99 +1,81 @@
+
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Grave Grid - Fixed Camera</title>
-    
-<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-   <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
-    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <title>GPS Grave Grid - Fixed Rebuild</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+<script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
 
     <style>
-        /* CRITICAL: Transparency fix for the black screen */
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: transparent !important; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         
         .ui-container {
             position: fixed; top: 0; left: 0; width: 100%;
-            z-index: 1000; padding: 10px; background: rgba(0,0,0,0.8);
+            z-index: 1000; padding: 15px; background: rgba(0,0,0,0.8);
             color: white; font-family: sans-serif; box-sizing: border-box;
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
         }
-        .input-row { display: flex; gap: 8px; align-items: center; justify-content: center; }
-        input { width: 90px; padding: 10px; border-radius: 4px; border: none; font-size: 14px; }
-        button { padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .input-row { display: flex; gap: 8px; }
+        input { width: 110px; padding: 12px; border-radius: 6px; border: none; font-size: 16px; }
+        button { padding: 12px 25px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        /* Ensure the video element is visible behind the canvas */
-        video { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; z-index: -1; }
+        /* Fix the black screen: make sure the canvas is transparent */
+        .a-canvas { background-color: transparent !important; }
     </style>
 </head>
 
-<body>
+<body style="margin: 0; overflow: hidden;">
     <div class="ui-container">
         <div class="input-row">
             <input type="number" id="latInput" value="52.367972" step="0.000001">
             <input type="number" id="lngInput" value="13.194501" step="0.000001">
-            <button id="updateBtn">UPDATE</button>
         </div>
+        <button id="updateBtn">UPDATE POSITION</button>
     </div>
 
     <a-scene 
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; trackingMethod: best;">
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera gps-camera="minDistance: 0;" rotation-reader></a-camera>
+
         <a-entity id="grid-anchor"></a-entity>
 
     </a-scene>
 
     <script>
-        // Use window.onload for AR.js to ensure the camera and scene are fully initialized
-        window.onload = () => {
+        window.addEventListener('load', () => {
             const updateBtn = document.getElementById('updateBtn');
             const anchor = document.getElementById('grid-anchor');
-            const scene = document.querySelector('a-scene');
-
-            const camera = document.querySelector('[gps-camera]');
-        camera.addEventListener('gps-camera-update-position', e => {
-            console.log('GPS update:', e.detail.position);
-        });
 
             function rebuild() {
                 const lat = document.getElementById('latInput').value;
                 const lng = document.getElementById('lngInput').value;
 
-                console.log(`Rebuilding grid at: ${lat}, ${lng}`);
+                // Clear previous children
+                while (anchor.firstChild) { anchor.removeChild(anchor.firstChild); }
 
-                // 1. Clear existing
-                while (anchor.firstChild) {
-                    anchor.removeChild(anchor.firstChild);
-                }
-
-                // 2. Re-create the entity
-                const tree = document.createElement('a-entity');
+                // Create a fresh wrapper for the GPS location
+                const gpsWrapper = document.createElement('a-entity');
+                gpsWrapper.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
                 
-                // IMPORTANT: We wait for the scene to be loaded before adding GPS components
-                if (scene.hasLoaded) {
-                    tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-                    generateRing(tree, 1, 16, 2.0, "#99ff99"); 
-                    generateRing(tree, 17, 40, 4.0, "#99ccff");
-                    anchor.appendChild(tree);
-                } else {
-                    scene.addEventListener('loaded', () => {
-                        tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-                        generateRing(tree, 1, 16, 2.0, "#99ff99"); 
-                        generateRing(tree, 17, 40, 4.0, "#99ccff");
-                        anchor.appendChild(tree);
-                    });
-                }
+                // Add the rings to this GPS-locked wrapper
+                generateRing(gpsWrapper, 1, 16, 2.0, "#99ff99"); 
+                generateRing(gpsWrapper, 17, 40, 4.0, "#99ccff");
+
+                anchor.appendChild(gpsWrapper);
+                console.log("Grid anchored to:", lat, lng);
             }
 
             updateBtn.addEventListener('click', rebuild);
             
-            // Trigger the initial build
-            rebuild();
-        };
+            // Wait a tiny bit for AR.js to wake up before first build
+            setTimeout(rebuild, 1000);
+        });
 
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
@@ -113,14 +95,16 @@
 
                 container.setAttribute('position', `${x} 0.2 ${z}`);
 
+                // The Ground Ring
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.3');
                 ring.setAttribute('radius-outer', '0.35');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
-                ring.setAttribute('material', 'shader: flat;'); // Makes it visible against camera
+                ring.setAttribute('material', 'shader: flat;');
                 container.appendChild(ring);
 
+                // The Number
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
