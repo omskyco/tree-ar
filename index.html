@@ -3,78 +3,68 @@
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>GPS Grave Grid - Dynamic Input</title>
+    <title>GPS Grave Grid - Verified Location</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        .ui-panel {
-            position: fixed; top: 0; left: 0; right: 0;
-            z-index: 1000; padding: 15px; background: rgba(0,0,0,0.8);
-            color: white; display: flex; flex-direction: column; gap: 8px;
-            font-size: 14px;
+        .instructions {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 10; padding: 10px; background: rgba(0,0,0,0.8);
+            color: white; border-radius: 8px; text-align: center; width: 85%;
         }
-        .input-row { display: flex; align-items: center; gap: 10px; }
-        input { 
-            padding: 5px; border-radius: 4px; border: none; width: 100px;
-            font-family: monospace;
+        .distance-hud {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10; padding: 10px; background: #28a745;
+            color: white; border-radius: 20px; font-weight: bold;
         }
-        button {
-            padding: 8px; border-radius: 4px; border: none;
-            background: #28a745; color: white; font-weight: bold; cursor: pointer;
-        }
-        button:active { background: #218838; }
     </style>
 </head>
 
 <body>
-    <div class="ui-panel">
-        <div class="input-row">
-            <label>Lat:</label>
-            <input type="number" id="latInput" value="52.367967" step="0.000001">
-            <label>Long:</label>
-            <input type="number" id="lngInput" value="13.194498" step="0.000001">
-            <button onclick="updateLocation()">Update</button>
-        </div>
-        <div style="font-size: 11px; opacity: 0.8;">
-            Grid: Inner 1-16 (Green) | Outer 17-40 (Blue)
-        </div>
+    <div class="instructions">
+        Target: 52.367972, 13.194501<br>
+        <span id="status">Waiting for GPS...</span>
     </div>
+    
+    <div class="distance-hud" id="hud">Distance: ---</div>
 
     <a-scene 
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+        arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera gps-camera="minDistance: 0; maxDistance: 1000;" rotation-reader></a-camera>
 
-        <a-entity id="tree-center">
-            </a-entity>
+        <a-entity id="tree-center" gps-entity-place="latitude: 52.367972; longitude: 13.194501;"></a-entity>
+
     </a-scene>
 
     <script>
-        // Main function to update the AR location and regenerate the grid
-        function updateLocation() {
-            const lat = document.getElementById('latInput').value;
-            const lng = document.getElementById('lngInput').value;
-            const tree = document.querySelector('#tree-center');
+        const tree = document.querySelector('#tree-center');
+        const hud = document.getElementById('hud');
+        const status = document.getElementById('status');
 
-            // Set the geo-coordinates for the parent entity
-            tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+        window.onload = () => {
+            // Wait for the GPS camera to start before building the grid
+            window.addEventListener('gps-camera-update-position', (e) => {
+                status.innerText = "GPS Active!";
+            });
 
-            // Clear any existing circles to prevent overlapping
-            while (tree.firstChild) {
-                tree.removeChild(tree.firstChild);
-            }
+            // --- GRID CONFIGURATION ---
+            generateRing(tree, 1, 16, 2.0, "#99ff99"); // Inner
+            generateRing(tree, 17, 40, 4.0, "#99ccff"); // Outer
 
-            console.log(`Grid moved to: ${lat}, ${lng}`);
-
-            // Generate Inner Square (16 graves) - Radius 2m
-            generateRing(tree, 1, 16, 2.0, "#99ff99"); 
-            
-            // Generate Outer Square (24 graves) - Radius 4m
-            generateRing(tree, 17, 40, 4.0, "#99ccff");
-        }
+            // Distance monitoring logic
+            setInterval(() => {
+                const distance = tree.getAttribute('distanceMsg');
+                if (distance) {
+                    hud.innerText = `Distance: ${distance}`;
+                }
+            }, 1000);
+        };
 
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
@@ -88,41 +78,34 @@
                 const side = Math.floor(i / perSide);
                 const progress = (i % perSide) * step - dist;
 
-                // North is -Z in AR.js
-                if (side === 0) { x = progress; z = -dist; } // North
-                else if (side === 1) { x = dist; z = progress; } // East
-                else if (side === 2) { x = -progress; z = dist; } // South
-                else if (side === 3) { x = -dist; z = -progress; } // West
+                if (side === 0) { x = progress; z = -dist; } 
+                else if (side === 1) { x = dist; z = progress; } 
+                else if (side === 2) { x = -progress; z = dist; } 
+                else if (side === 3) { x = -dist; z = -progress; }
 
-                // Position slightly off ground to avoid z-fighting/flicker
-                container.setAttribute('position', `${x} 0.1 ${z}`);
+                container.setAttribute('position', `${x} 0.2 ${z}`);
 
-                // The Circle Ring
+                // Circle
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.3');
                 ring.setAttribute('radius-outer', '0.35');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
+                ring.setAttribute('material', 'transparent: true; opacity: 0.8');
                 container.appendChild(ring);
 
-                // The Number Label
+                // Number
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
                 label.setAttribute('scale', '2 2 2');
-                label.setAttribute('position', '0 0.6 0');
-                // Ensures text faces the phone camera
+                label.setAttribute('position', '0 0.7 0');
                 label.setAttribute('look-at', '[gps-camera]'); 
                 container.appendChild(label);
 
                 parent.appendChild(container);
             }
         }
-
-        // Initialize grid on load
-        window.onload = () => {
-            updateLocation();
-        };
     </script>
 </body>
 </html>
