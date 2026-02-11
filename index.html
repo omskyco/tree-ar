@@ -6,54 +6,62 @@
     <title>GPS Grave Grid - AR.js</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        .instructions {
-            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 10; padding: 10px; background: rgba(0,0,0,0.7);
-            color: white; border-radius: 8px; text-align: center; width: 80%;
+        .controls {
+            position: fixed; top: 0; left: 0; width: 100%;
+            z-index: 100; padding: 10px; background: rgba(0,0,0,0.8);
+            color: white; display: flex; flex-direction: column; gap: 5px;
         }
+        .input-group { display: flex; gap: 5px; align-items: center; }
+        input { width: 90px; padding: 5px; border-radius: 4px; border: none; }
+        button { padding: 5px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 
 <body>
-    <div class="instructions">
-        Walk toward the coordinates to see the Grave Grid.<br>
-        <b>Inner Square: 1-16</b> | <b>Outer Square: 17-40</b>
+    <div class="controls">
+        <div class="input-group">
+            <label>Lat:</label>
+            <input type="number" id="latInput" value="52.367972" step="0.000001">
+            <label>Lng:</label>
+            <input type="number" id="lngInput" value="13.194501" step="0.000001">
+            <button onclick="applyNewLocation()">UPDATE</button>
+        </div>
+        <div id="status" style="font-size: 12px; color: #ffc107;">Initializing GPS...</div>
     </div>
 
     <a-scene 
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+        arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera gps-camera="minDistance: 0.1; maxDistance: 1000;" rotation-reader></a-camera>
 
-        <a-entity id="tree-center" gps-entity-place="latitude: 52.367972; longitude: 13.194501;">
-            </a-entity>
+        <a-entity id="tree-center"></a-entity>
 
     </a-scene>
 
     <script>
-        window.onload = () => {
-            const tree = document.querySelector('#tree-center');
+        const tree = document.querySelector('#tree-center');
+        const status = document.getElementById('status');
 
-            // --- GRID CONFIGURATION ---
-            // Inner Square (16 graves)
-            generateRing(tree, 1, 16, 2.0, "#99ff99"); 
+        function applyNewLocation() {
+            const lat = document.getElementById('latInput').value;
+            const lng = document.getElementById('lngInput').value;
+
+            // Update the A-Entity Coordinates
+            tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
             
-            // Outer Square (24 graves)
+            // Clear and Regenerate Grid
+            while (tree.firstChild) { tree.removeChild(tree.firstChild); }
+            generateRing(tree, 1, 16, 2.0, "#99ff99"); 
             generateRing(tree, 17, 40, 4.0, "#99ccff");
-        };
 
-        /**
-         * Generates a square perimeter of circles.
-         * @param {Element} parent - The tree entity.
-         * @param {Number} startNum - Starting label index.
-         * @param {Number} total - Total circles in this ring.
-         * @param {Number} dist - Distance from center (radius).
-         * @param {String} color - Hex color for the ring.
-         */
+            status.innerText = `Target set to: ${lat}, ${lng}`;
+        }
+
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
             const perSide = total / 4;
@@ -62,20 +70,16 @@
             for (let i = 0; i < total; i++) {
                 const container = document.createElement('a-entity');
                 let x = 0, z = 0;
-                
                 const side = Math.floor(i / perSide);
                 const progress = (i % perSide) * step - dist;
 
-                // Position Logic (Standard Top-Right-Bottom-Left)
-                // In AR.js, -Z is North.
-                if (side === 0) { x = progress; z = -dist; } // North side
-                else if (side === 1) { x = dist; z = progress; } // East side
-                else if (side === 2) { x = -progress; z = dist; } // South side
-                else if (side === 3) { x = -dist; z = -progress; } // West side
+                if (side === 0) { x = progress; z = -dist; } 
+                else if (side === 1) { x = dist; z = progress; } 
+                else if (side === 2) { x = -progress; z = dist; } 
+                else if (side === 3) { x = -dist; z = -progress; }
 
-                container.setAttribute('position', `${x} 0.1 ${z}`);
+                container.setAttribute('position', `${x} 0.2 ${z}`);
 
-                // 1. The Grave Circle (Ring)
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.3');
                 ring.setAttribute('radius-outer', '0.35');
@@ -83,18 +87,27 @@
                 ring.setAttribute('rotation', '-90 0 0');
                 container.appendChild(ring);
 
-                // 2. The Grave Number (Text)
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
-                label.setAttribute('scale', '1.5 1.5 1.5');
-                label.setAttribute('position', '0 0.5 0'); // Floats slightly above circle
-                label.setAttribute('look-at', '[gps-camera]'); // Faces user
+                label.setAttribute('scale', '2 2 2');
+                label.setAttribute('position', '0 0.8 0');
+                label.setAttribute('look-at', '[gps-camera]'); 
                 container.appendChild(label);
 
                 parent.appendChild(container);
             }
         }
+
+        window.onload = () => {
+            applyNewLocation();
+            
+            // Critical: Listen for GPS signal
+            window.addEventListener('gps-camera-update-position', (e) => {
+                status.style.color = "#28a745";
+                status.innerText = "GPS Connected & Locked";
+            });
+        };
     </script>
 </body>
 </html>
