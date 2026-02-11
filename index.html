@@ -4,75 +4,75 @@
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Grave Grid - World Locked</title>
+    <title>GPS Grave Grid - Fixed Camera</title>
 
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: black; }
+        /* Essential to ensure the webcam can be seen behind the 3D */
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: transparent !important; }
+        
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 2000;
+            background: rgba(0,0,0,0.8); z-index: 2000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; font-family: sans-serif; text-align: center; padding: 20px;
+            color: white; font-family: sans-serif; text-align: center;
         }
+
         .ui-container {
             position: fixed; top: 0; left: 0; width: 100%;
-            z-index: 1000; padding: 10px; background: rgba(0,0,0,0.8);
+            z-index: 1000; padding: 10px; background: rgba(0,0,0,0.7);
             color: white; font-family: sans-serif; display: flex; gap: 8px; justify-content: center; align-items: center;
         }
-        input { width: 95px; padding: 10px; border-radius: 4px; border: none; font-size: 14px; }
-        button { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        #startBtn { padding: 20px 40px; font-size: 18px; background: #28a745; margin-top: 10px; cursor: pointer; border: none; border-radius: 8px; color: white; }
+        input { width: 95px; padding: 10px; border-radius: 4px; border: none; }
+        #startBtn { padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 
 <body>
     <div id="overlay">
-        <h1>GPS Grid Sync</h1>
-        <p>1. Stand at the Tree<br>2. Calibrate Compass (Figure 8 move)<br>3. Press Start</p>
-        <button id="startBtn">START AR</button>
+        <h2>GPS Grid Ready</h2>
+        <p>Ensure you are outdoors.</p>
+        <button id="startBtn">START CAMERA</button>
     </div>
 
     <div class="ui-container">
         <input type="number" id="latInput" value="52.367972" step="0.000001">
         <input type="number" id="lngInput" value="13.194501" step="0.000001">
-        <button id="updateBtn">UPDATE</button>
+        <button id="updateBtn" style="background:#007bff; color:white; border:none; padding:10px; border-radius:4px;">UPDATE</button>
     </div>
 
     <a-scene 
-        vr-mode-ui="enabled: false" 
-        embedded 
-        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
-        arjs-device-orientation-controls>
-        
-        <a-camera 
-            gps-camera="minDistance: 2; positionMinAccuracy: 100;" 
-            rotation-reader>
-        </a-camera>
+        vr-mode-ui="enabled: false"
+        embedded
+        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; trackingMethod: best;"
+        renderer="antialias: true; alpha: true; logarithmicDepthBuffer: true;">
+
+        <a-camera gps-camera="minDistance: 1; positionMinAccuracy: 100;" rotation-reader></a-camera>
 
         <a-entity id="grid-parent"></a-entity>
+
     </a-scene>
 
     <script>
         const gridParent = document.getElementById('grid-parent');
         const startBtn = document.getElementById('startBtn');
-        const updateBtn = document.getElementById('updateBtn');
         const overlay = document.getElementById('overlay');
 
         startBtn.addEventListener('click', () => {
             overlay.style.display = 'none';
             
-            // Critical for iOS and Chrome to unlock the compass!
+            // Permissions for iOS/Safari
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission().catch(console.error);
             }
-            
+
+            // Force the grid to build
             rebuildGrid();
         });
 
-        updateBtn.addEventListener('click', rebuildGrid);
+        document.getElementById('updateBtn').addEventListener('click', rebuildGrid);
 
         function rebuildGrid() {
             const lat = parseFloat(document.getElementById('latInput').value);
@@ -80,14 +80,14 @@
 
             while (gridParent.firstChild) gridParent.removeChild(gridParent.firstChild);
 
-            const newAnchor = document.createElement('a-entity');
-            // This tells AR.js where the object lives in the real world
-            newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+            const anchor = document.createElement('a-entity');
+            anchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
             
-            generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
-            generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
+            generateRing(anchor, 1, 16, 2.0, "#00ff00");
+            generateRing(anchor, 17, 40, 4.0, "#00ccff");
 
-            gridParent.appendChild(newAnchor);
+            gridParent.appendChild(anchor);
+            console.log("Grid Rebuilt at:", lat, lng);
         }
 
         function generateRing(parent, startNum, endNum, dist, color) {
