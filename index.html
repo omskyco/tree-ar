@@ -9,73 +9,62 @@
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
 
-    <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        
+   <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: transparent; }
         .ui-container {
             position: fixed; top: 0; left: 0; width: 100%;
-            z-index: 1000; padding: 15px; background: rgba(0,0,0,0.8);
-            color: white; font-family: sans-serif; box-sizing: border-box;
-            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            z-index: 1000; padding: 10px; background: rgba(0,0,0,0.8);
+            color: white; font-family: sans-serif; display: flex; gap: 5px; justify-content: center;
         }
-        .input-row { display: flex; gap: 8px; }
-        input { width: 110px; padding: 12px; border-radius: 6px; border: none; font-size: 16px; }
-        button { padding: 12px 25px; background: #28a745; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        
-        /* Fix the black screen: make sure the canvas is transparent */
-        .a-canvas { background-color: transparent !important; }
+        input { width: 85px; padding: 8px; border-radius: 4px; border: none; }
+        button { padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
     </style>
 </head>
 
-<body style="margin: 0; overflow: hidden;">
+<body>
     <div class="ui-container">
-        <div class="input-row">
-            <input type="number" id="latInput" value="52.367972" step="0.000001">
-            <input type="number" id="lngInput" value="13.194501" step="0.000001">
-        </div>
-        <button id="updateBtn">UPDATE POSITION</button>
+        <input type="number" id="latInput" value="52.367972" step="0.000001">
+        <input type="number" id="lngInput" value="13.194501" step="0.000001">
+        <button id="updateBtn">UPDATE</button>
     </div>
 
     <a-scene 
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; trackingMethod: best;">
+        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
 
-        <a-camera gps-camera="minDistance: 0;" rotation-reader></a-camera>
+        <a-camera gps-camera="simulateLatitude: 52.367972; simulateLongitude: 13.194501; minDistance: 0;" rotation-reader></a-camera>
 
         <a-entity id="grid-anchor"></a-entity>
 
     </a-scene>
 
     <script>
-        window.addEventListener('load', () => {
+        window.onload = () => {
             const updateBtn = document.getElementById('updateBtn');
             const anchor = document.getElementById('grid-anchor');
 
             function rebuild() {
-                const lat = document.getElementById('latInput').value;
-                const lng = document.getElementById('lngInput').value;
+                const lat = parseFloat(document.getElementById('latInput').value);
+                const lng = parseFloat(document.getElementById('lngInput').value);
 
-                // Clear previous children
+                // Wipe everything
                 while (anchor.firstChild) { anchor.removeChild(anchor.firstChild); }
 
-                // Create a fresh wrapper for the GPS location
-                const gpsWrapper = document.createElement('a-entity');
-                gpsWrapper.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+                // Create a container for the GPS point
+                const tree = document.createElement('a-entity');
+                tree.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
                 
-                // Add the rings to this GPS-locked wrapper
-                generateRing(gpsWrapper, 1, 16, 2.0, "#99ff99"); 
-                generateRing(gpsWrapper, 17, 40, 4.0, "#99ccff");
+                // Generate Rings
+                generateRing(tree, 1, 16, 2.0, "#00ff00"); // Inner
+                generateRing(tree, 17, 40, 4.0, "#00ccff"); // Outer
 
-                anchor.appendChild(gpsWrapper);
-                console.log("Grid anchored to:", lat, lng);
+                anchor.appendChild(tree);
             }
 
             updateBtn.addEventListener('click', rebuild);
-            
-            // Wait a tiny bit for AR.js to wake up before first build
-            setTimeout(rebuild, 1000);
-        });
+            rebuild();
+        };
 
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
@@ -93,24 +82,27 @@
                 else if (side === 2) { x = -progress; z = dist; } 
                 else if (side === 3) { x = -dist; z = -progress; }
 
-                container.setAttribute('position', `${x} 0.2 ${z}`);
+                // Set position (y=0.1 to stay on ground)
+                container.setAttribute('position', `${x} 0.1 ${z}`);
 
-                // The Ground Ring
+                // 1. THE CIRCLE
                 const ring = document.createElement('a-ring');
-                ring.setAttribute('radius-inner', '0.3');
+                ring.setAttribute('radius-inner', '0.28');
                 ring.setAttribute('radius-outer', '0.35');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
                 ring.setAttribute('material', 'shader: flat;');
                 container.appendChild(ring);
 
-                // The Number
+                // 2. THE NUMBER (Sitting inside the circle)
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
-                label.setAttribute('scale', '2 2 2');
-                label.setAttribute('position', '0 0.5 0');
-                label.setAttribute('look-at', '[gps-camera]'); 
+                label.setAttribute('width', '4'); 
+                label.setAttribute('color', '#FFFFFF');
+                // Rotate -90 on X so it lies flat on the ground inside the ring
+                label.setAttribute('rotation', '-90 0 0'); 
+                label.setAttribute('position', '0 0.05 0'); 
                 container.appendChild(label);
 
                 parent.appendChild(container);
