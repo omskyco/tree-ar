@@ -83,15 +83,6 @@ startBtn.addEventListener('click', () => {
     rebuildGrid();
 });
 
-    overlay.style.display = 'none';
-    console.log('Start button clicked');
-
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-            .then(() => console.log('Device orientation permission granted'))
-            .catch(e => console.error('Device orientation permission denied', e));
-    }
-
 
 updateBtn.addEventListener('click', () => {
     console.log('Update button clicked');
