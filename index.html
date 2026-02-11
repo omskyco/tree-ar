@@ -77,6 +77,20 @@ startBtn.addEventListener('click', () => {
             .then(() => console.log('Device orientation permission granted'))
             .catch(e => console.error('Device orientation permission denied', e));
     }
+
+    // Immediately rebuild grid for testing with simulated GPS
+    gpsReady = true;
+    rebuildGrid();
+});
+
+    overlay.style.display = 'none';
+    console.log('Start button clicked');
+
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(() => console.log('Device orientation permission granted'))
+            .catch(e => console.error('Device orientation permission denied', e));
+    }
 });
 
 updateBtn.addEventListener('click', () => {
@@ -86,7 +100,9 @@ updateBtn.addEventListener('click', () => {
 });
 
 function rebuildGrid() {
-    alert("Rebuilding grid...");
+    console.log("Rebuilding grid...");
+    alert("Rebuilding grid..."); // visual confirmation
+
     const lat = parseFloat(document.getElementById('latInput').value);
     const lng = parseFloat(document.getElementById('lngInput').value);
     console.log("Grid rebuild called at:", lat, lng);
@@ -102,6 +118,7 @@ function rebuildGrid() {
     gridParent.appendChild(newAnchor);
     console.log('Grid added to scene ✅');
 }
+
 
 
         function generateRing(parent, startNum, endNum, dist, color) {
