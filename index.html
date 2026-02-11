@@ -4,7 +4,7 @@
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Grave Grid - AR.js Example</title>
+    <title>GPS Grave Grid - Fixed Rebuild</title>
 
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
@@ -42,9 +42,7 @@
     </div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
-        <!-- Optional: simulate GPS for testing -->
-        <a-camera gps-camera="simulateLatitude:52.367972; simulateLongitude:13.194501; minDistance:1;" rotation-reader></a-camera>
-
+        <a-camera gps-camera="simulateLatitude:52.367972; simulateLongitude:13.194501; minDistance:0;" rotation-reader></a-camera>
         <a-entity id="grid-parent"></a-entity>
     </a-scene>
 
@@ -53,64 +51,59 @@
         const startBtn = document.getElementById('startBtn');
         const updateBtn = document.getElementById('updateBtn');
         const overlay = document.getElementById('overlay');
-
         const scene = document.querySelector('a-scene');
-        const camera = document.querySelector('[gps-camera]');
-        let gpsReady = false;
 
-       scene.addEventListener('loaded', () => {
-    console.log('Scene loaded ✅');
+        // Initial Scene Load log
+        scene.addEventListener('loaded', () => {
+            console.log('Scene loaded ✅');
+        });
 
-    camera.addEventListener('gps-camera-update-position', () => {
-        console.log('GPS fix acquired ✅');
-        gpsReady = true;
-        rebuildGrid();
-    }, { once: true });
-});
+        // START BUTTON
+        startBtn.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            console.log('Start button clicked');
 
-startBtn.addEventListener('click', () => {
-    overlay.style.display = 'none';
-    console.log('Start button clicked');
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(() => console.log('Compass Permission Granted'))
+                    .catch(e => console.error('Compass Permission Denied', e));
+            }
 
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-            .then(() => console.log('Device orientation permission granted'))
-            .catch(e => console.error('Device orientation permission denied', e));
-    }
+            // Immediately build the grid so the user isn't staring at nothing
+            rebuildGrid();
+        });
 
-    // Immediately rebuild grid for testing with simulated GPS
-    gpsReady = true;
-    rebuildGrid();
-});
+        // UPDATE BUTTON
+        updateBtn.addEventListener('click', () => {
+            console.log('Update button clicked');
+            rebuildGrid(); // No more 'gpsReady' blocker!
+        });
 
+        function rebuildGrid() {
+            const lat = parseFloat(document.getElementById('latInput').value);
+            const lng = parseFloat(document.getElementById('lngInput').value);
+            
+            console.log("Rebuilding grid at:", lat, lng);
 
-updateBtn.addEventListener('click', () => {
-    console.log('Update button clicked');
-    if (!gpsReady) return console.warn("GPS not ready yet!");
-    rebuildGrid();
-});
+            // 1. Clear old children
+            while (gridParent.firstChild) {
+                gridParent.removeChild(gridParent.firstChild);
+            }
 
-function rebuildGrid() {
-    console.log("Rebuilding grid...");
-    alert("Rebuilding grid..."); // visual confirmation
+            // 2. Create the GPS anchor
+            const newAnchor = document.createElement('a-entity');
+            
+            // Set the attribute BEFORE appending
+            newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+            
+            // 3. Generate Rings
+            generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
+            generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
 
-    const lat = parseFloat(document.getElementById('latInput').value);
-    const lng = parseFloat(document.getElementById('lngInput').value);
-    console.log("Grid rebuild called at:", lat, lng);
-
-    while (gridParent.firstChild) gridParent.removeChild(gridParent.firstChild);
-
-    const newAnchor = document.createElement('a-entity');
-    newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-    
-    generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
-    generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
-
-    gridParent.appendChild(newAnchor);
-    console.log('Grid added to scene ✅');
-}
-
-
+            // 4. Attach to scene
+            gridParent.appendChild(newAnchor);
+            console.log('Grid added to scene ✅');
+        }
 
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
@@ -141,10 +134,10 @@ function rebuildGrid() {
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
-                label.setAttribute('width', '1'); // small width to fit the ring
+                label.setAttribute('width', '3'); // Changed from 1 to 3 so it's readable
                 label.setAttribute('color', '#FFFFFF');
                 label.setAttribute('rotation', '-90 0 0');
-                label.setAttribute('position', '0 0.02 0'); 
+                label.setAttribute('position', '0 0.05 0'); 
                 container.appendChild(label);
 
                 parent.appendChild(container);
