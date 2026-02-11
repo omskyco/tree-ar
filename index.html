@@ -102,9 +102,9 @@
             // Align to Real North
             gridGroup.rotation.y = -THREE.MathUtils.degToRad(compassHeading);
 
-            // Ring 1 (Inner)
+            //inner ring
             generateSquareRing(gridGroup, 1, 16, INNER_DIST, 0x00ff00);
-            // Ring 2 (Outer)
+            //outer ring, ring 2
             generateSquareRing(gridGroup, 17, 40, OUTER_DIST, 0x00ccff);
 
             scene.add(gridGroup);
@@ -114,54 +114,48 @@
             document.getElementById('instructions').innerText = "LOCKED TO NORTH";
         }
 
-       function generateSquareRing(parent, start, end, dist, color) {
+   function generateSquareRing(parent, start, end, dist, color) {
+    // The 'spacing' determines how far apart the slots are. 
+    // If circles overlap, decrease the marker size in createMarker or increase this spacing.
+    const spacing = 0.85; 
+
     for (let num = start; num <= end; num++) {
-        let x = 0, z = 0;
+        let gridX = 0;
+        let gridZ = 0;
 
         if (start === 1) {
-            // INNER RING (1-16) - Mapped to match Bild.jpg perfectly
-            const map = {
-                16:{x:-0.5, z:-1}, 1:{x:0.5, z:-1}, 2:{x:1.5, z:-1}, 3:{x:2.5, z:-1}, // North
-                4:{x:2.5, z:0}, 5:{x:2.5, z:1}, 6:{x:2.5, z:2}, 7:{x:2.5, z:3},       // East
-                8:{x:1.5, z:3}, 9:{x:0.5, z:3}, 10:{x:-0.5, z:3}, 11:{x:-1.5, z:3},    // South
-                12:{x:-1.5, z:2}, 13:{x:-1.5, z:1}, 14:{x:-1.5, z:0}, 15:{x:-1.5, z:-1} // West
+            // INNER RING (5x5 Grid Slots)
+            // North: 16(-1,-2), 1(0,-2), 2(1,-2), 3(2,-2)
+            // East: 4(2,-1), 5(2,0), 6(2,1), 7(2,2)
+            // South: 8(1,2), 9(0,2), 10(-1,2), 11(-2,2)
+            // West: 12(-2,1), 13(-2,0), 14(-2,-1), 15(-2,-2)
+            
+            const innerMap = {
+                16:[-1,-2], 1:[0,-2], 2:[1,-2], 3:[2,-2],
+                4:[2,-1], 5:[2,0], 6:[2,1], 7:[2,2],
+                8:[1,2], 9:[0,2], 10:[-1,2], 11:[-2,2],
+                12:[-2,1], 13:[-2,0], 14:[-2,-1], 15:[-2,-2]
             };
-            const p = map[num];
-            if(p) { x = p.x * 0.7; z = p.z * 0.7; }
+            [gridX, gridZ] = innerMap[num];
         } else {
-            // OUTER RING (17-40) - Corner Overlap Fix
-            // North Row: 17 to 20
-            if (num >= 17 && num <= 20) { 
-                x = (num - 18.5) * 1.1; 
-                z = -dist; 
-                if (num === 20) x += 0.5; // Push 20 further East
-            }
-            // East Side: 21 to 25
-            else if (num >= 21 && num <= 25) { 
-                x = dist + 0.8; 
-                z = (num - 23) * 1.1; 
-                if (num === 21) z -= 0.3; // Push 21 further North
-            }
-            // South Side: 26 to 32
-            else if (num >= 26 && num <= 32) { 
-                x = (29 - num) * 1.1; 
-                z = dist + 0.8; 
-                if (num === 26) x += 0.3; // Push 26 further East
-            }
-            // West Side: 33 to 37
-            else if (num >= 33 && num <= 37) { 
-                x = -(dist + 0.8); 
-                z = (35 - num) * 1.1; 
-            }
-            // North-West Wrap: 38 to 40
-            else if (num >= 38 && num <= 40) { 
-                x = (num - 41) * 1.1; 
-                z = -dist; 
-            }
+            // OUTER RING (7x7 Grid Slots)
+            // North Row (Top)
+            if (num >= 38 && num <= 40) { gridX = num - 41; gridZ = -3; } // 38(-3,-3), 39(-2,-3), 40(-1,-3)
+            else if (num >= 17 && num <= 20) { gridX = num - 17; gridZ = -3; } // 17(0,-3), 18(1,-3), 19(2,-3), 20(3,-3)
+            
+            // East Column (Right)
+            else if (num >= 21 && num <= 25) { gridX = 3; gridZ = num - 23; } // 21(3,-2), 22(3,-1), 23(3,0), 24(3,1), 25(3,2)
+            
+            // South Row (Bottom)
+            else if (num >= 26 && num <= 32) { gridX = 29 - num; gridZ = 3; } // 26(3,3) ... 32(-3,3)
+            
+            // West Column (Left)
+            else if (num >= 33 && num <= 37) { gridX = -3; gridZ = 35 - num; } // 33(-3,2) ... 37(-3,-2)
         }
 
         const marker = createMarker(num, color);
-        marker.position.set(x, 0, z);
+        // Slot * Spacing = Real World Meters
+        marker.position.set(gridX * spacing, 0, gridZ * spacing);
         parent.add(marker);
     }
 }
