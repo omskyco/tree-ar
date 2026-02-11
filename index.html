@@ -4,29 +4,27 @@
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Grave Grid - Fixed Update</title>
-    
+    <title>GPS Grave Grid - AR.js Example</title>
+
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: black; }
-        
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: black; }
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 2000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             color: white; font-family: sans-serif; text-align: center;
         }
-
         .ui-container {
             position: fixed; top: 0; left: 0; width: 100%;
             z-index: 1000; padding: 10px; background: rgba(0,0,0,0.8);
             color: white; font-family: sans-serif; display: flex; gap: 8px; justify-content: center; align-items: center;
         }
         input { width: 95px; padding: 10px; border-radius: 4px; border: none; font-size: 14px; }
-        #startBtn { padding: 20px 40px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        #updateBtn { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        button { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        #startBtn { padding: 20px 40px; font-size: 18px; background: #28a745; margin-top: 10px; cursor: pointer; }
     </style>
 </head>
 
@@ -43,15 +41,11 @@
         <button id="updateBtn">UPDATE</button>
     </div>
 
-    <a-scene 
-        vr-mode-ui="enabled: false"
-        embedded
-        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
-
-        <a-camera gps-camera="minDistance: 1; positionMinAccuracy: 10;" rotation-reader></a-camera>
+    <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;">
+        <!-- Optional: simulate GPS for testing -->
+        <a-camera gps-camera="simulateLatitude:52.367972; simulateLongitude:13.194501; minDistance:1;" rotation-reader></a-camera>
 
         <a-entity id="grid-parent"></a-entity>
-
     </a-scene>
 
     <script>
@@ -60,44 +54,53 @@
         const updateBtn = document.getElementById('updateBtn');
         const overlay = document.getElementById('overlay');
 
-        function rebuildGrid() {
-            const lat = document.getElementById('latInput').value;
-            const lng = document.getElementById('lngInput').value;
+        const scene = document.querySelector('a-scene');
+        const camera = document.querySelector('[gps-camera]');
+        let gpsReady = false;
 
-            console.log("Cleaning old grid...");
-            // 1. CLEAR: Remove all current children from the parent
-            while (gridParent.firstChild) {
-                gridParent.removeChild(gridParent.firstChild);
-            }
-
-            // 2. CREATE NEW: Make a fresh entity for the GPS point
-            const newAnchor = document.createElement('a-entity');
+        // Wait until scene is fully loaded
+        scene.addEventListener('loaded', () => {
+            console.log('Scene loaded. Waiting for GPS fix...');
             
-            // 3. SET GPS: Nicolò's method works best when the component is added fresh
-            newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-            
-            // 4. GENERATE: Draw the rings inside this new anchor
-            generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
-            generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
+            // Wait for first GPS fix
+            camera.addEventListener('gps-camera-update-position', () => {
+                console.log('GPS ready');
+                gpsReady = true;
+                rebuildGrid();
+            }, { once: true });
+        });
 
-            // 5. ATTACH: Put it in the scene
-            gridParent.appendChild(newAnchor);
-            
-            console.log("New grid injected at:", lat, lng);
-        }
-
-        // Start logic
         startBtn.addEventListener('click', () => {
             overlay.style.display = 'none';
-            // Request compass permissions for iOS
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission().catch(console.error);
             }
+        });
+
+        updateBtn.addEventListener('click', () => {
+            if (!gpsReady) return console.warn("GPS not ready yet!");
             rebuildGrid();
         });
 
-        // Update logic - now uses the same full rebuild
-        updateBtn.addEventListener('click', rebuildGrid);
+        function rebuildGrid() {
+            const lat = parseFloat(document.getElementById('latInput').value);
+            const lng = parseFloat(document.getElementById('lngInput').value);
+
+            // Clear previous entities
+            while (gridParent.firstChild) gridParent.removeChild(gridParent.firstChild);
+
+            // Create new GPS anchor
+            const newAnchor = document.createElement('a-entity');
+            newAnchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
+            
+            // Generate rings
+            generateRing(newAnchor, 1, 16, 2.0, "#00ff00");
+            generateRing(newAnchor, 17, 40, 4.0, "#00ccff");
+
+            // Attach to scene
+            gridParent.appendChild(newAnchor);
+            console.log("Grid created at:", lat, lng);
+        }
 
         function generateRing(parent, startNum, endNum, dist, color) {
             const total = (endNum - startNum) + 1;
@@ -128,7 +131,7 @@
                 const label = document.createElement('a-text');
                 label.setAttribute('value', startNum + i);
                 label.setAttribute('align', 'center');
-                label.setAttribute('width', '3');
+                label.setAttribute('width', '1'); // small width to fit the ring
                 label.setAttribute('color', '#FFFFFF');
                 label.setAttribute('rotation', '-90 0 0');
                 label.setAttribute('position', '0 0.02 0'); 
