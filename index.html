@@ -29,7 +29,7 @@
         import { ARButton } from 'https://unpkg.com/three@0.150.1/examples/jsm/webxr/ARButton.js';
 
         // SETTINGS
-        const HEADING_CORRECTION = 0; // Change to 180 if North/South are swapped
+        const HEADING_CORRECTION = 0; // -> switch 180 if North/South are swapped
         const INNER_DIST = 1.0; 
         const OUTER_DIST = 2.2;
 
@@ -115,8 +115,8 @@
         }
 
    function generateSquareRing(parent, start, end, dist, color) {
-    // The 'spacing' determines how far apart the slots are. 
-    // If circles overlap, decrease the marker size in createMarker or increase this spacing.
+    // spacing determines how far apart the slots are. 
+    // circles overlap => decrease the marker size in createMarker or increase this spacing.
     const spacing = 0.85; 
 
     for (let num = start; num <= end; num++) {
