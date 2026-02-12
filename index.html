@@ -8,14 +8,14 @@
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
 
-    <style>
-        body, html { margin: 0; overflow: hidden; width: 100%; height: 100%; background-color: #000; }
+  <style>
         
-      
+        body, html { margin: 0; overflow: hidden; width: 100%; height: 100%; background-color: transparent; }
+        
         #permission-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 10000;
-            display: flex; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.9); z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
             color: white; font-family: sans-serif; text-align: center;
         }
 
@@ -23,7 +23,7 @@
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
             z-index: 9999; padding: 15px 40px; font-size: 18px; 
             border-radius: 30px; border: none; color: white; font-weight: bold;
-            background: #28a745; display: none; /* Shows after permission */
+            background: #28a745; display: none;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
 
@@ -36,10 +36,11 @@
 </head>
 
 <body>
-    <div id="debug">Waiting for interaction...</div>
+    <div id="debug">Waiting...</div>
     
     <div id="permission-overlay">
-        <h2>Tap anywhere to start AR</h2>
+        <h2>TAP SCREEN TO START</h2>
+        <p>This enables Camera & Compass</p>
     </div>
 
     <button id="lockBtn">LOCK GRID</button>
@@ -47,11 +48,11 @@
     <a-scene 
         embedded 
         vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; debugUIEnabled: false;"
-        renderer="antialias: true; alpha: true;">
+        arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;"
+        renderer="antialias: true; alpha: true; logarithmicDepthBuffer: true;">
         
         <a-entity id="grid-anchor"></a-entity>
-        <a-camera id="cam" look-controls="enabled: false"></a-camera>
+        <a-camera id="cam" look-controls="enabled: false" wasd-controls-enabled="false"></a-camera>
     </a-scene>
 
     <script>
@@ -63,16 +64,18 @@
         const lockBtn = document.getElementById('lockBtn');
         const debug = document.getElementById('debug');
 
-        // Capture the first tap anywhere to satisfy iOS security
         window.addEventListener('click', function() {
             if (permissionsGranted) return;
 
+            // Permission for Compass/Orientation
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission().then(response => {
                     if (response == 'granted') {
                         startARSession();
                     }
-                }).catch(console.error);
+                }).catch(err => {
+                    debug.innerText = "Error: Needs HTTPS";
+                });
             } else {
                 startARSession();
             }
@@ -82,6 +85,7 @@
             permissionsGranted = true;
             overlay.style.display = 'none';
             lockBtn.style.display = 'block';
+            debug.innerText = "Looking for North...";
             
             window.addEventListener('deviceorientationabsolute', (e) => {
                 compassHeading = e.webkitCompassHeading || (360 - e.alpha);
@@ -90,9 +94,10 @@
         }
 
         lockBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent re-triggering the window click
+            e.stopPropagation(); 
             
             const camPos = cam.object3D.position;
+            // grid
             gridAnchor.setAttribute('position', `${camPos.x} -1.6 ${camPos.z}`);
             gridAnchor.setAttribute('rotation', `0 ${-compassHeading} 0`);
             
