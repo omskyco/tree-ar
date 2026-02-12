@@ -2,48 +2,40 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>test</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    
+    <title>test2</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-      
-        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
         
-        #ar-overlay {
+  
+        #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 9999; display: flex; flex-direction: column;
-            justify-content: space-between; align-items: center; pointer-events: none;
+            z-index: 999; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; align-items: center;
         }
 
-        .ui-panel {
-            background: rgba(0,0,0,0.7); color: white; padding: 15px;
-            margin: 20px; border-radius: 12px; text-align: center; pointer-events: auto;
+        .button-container { padding: 20px; pointer-events: auto; }
+
+        .btn {
+            background: #ef3160; color: white; border: none; padding: 15px 30px;
+            font-size: 16px; border-radius: 8px; font-weight: bold; cursor: pointer;
         }
 
-        .btn-main {
-            background-color: #ef2d5e; color: white; border: none;
-            padding: 15px 40px; border-radius: 8px; font-size: 1.2rem;
-            font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        #status-bar {
+            background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
+            margin-top: 20px; border-radius: 20px; font-size: 14px;
         }
-
-        #lockBtn { background-color: #28a745; display: none; }
-        #debug { font-size: 10px; color: #00ff00; margin-top: 10px; }
     </style>
 </head>
 
 <body>
-    <div id="ar-overlay">
-        <div class="ui-panel">
-            <div id="status">AR SYSTEM READY</div>
-            <div id="debug">Waiting for user interaction...</div>
-        </div>
+    <div id="overlay">
+        <div id="status-bar">1. TAP START -> 2. FACE NORTH -> 3. LOCK</div>
         
-        <div class="ui-panel" style="background: transparent;">
-            <button id="startBtn" class="btn-main">INITIALIZE AR</button>
-            <button id="lockBtn" class="btn-main">LOCK TO NORTH</button>
+        <div class="button-container">
+            <button id="mainBtn" class="btn">START AR SESSION</button>
         </div>
     </div>
 
@@ -53,67 +45,75 @@
         arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
         renderer="antialias: true; alpha: true;">
         
-        <a-entity id="grid-anchor"></a-entity>
+        <a-entity id="master-grid"></a-entity>
         
-        <a-camera id="camera" look-controls-enabled="false" wasd-controls-enabled="false"></a-camera>
+        <a-camera id="camera" look-controls-enabled="false"></a-camera>
     </a-scene>
 
     <script>
-        const startBtn = document.getElementById('startBtn');
-        const lockBtn = document.getElementById('lockBtn');
-        const debug = document.getElementById('debug');
-        const status = document.getElementById('status');
-        const gridAnchor = docsument.getElementById('grid-anchor');
+        const mainBtn = document.getElementById('mainBtn');
+        const statusBar = document.getElementById('status-bar');
+        const masterGrid = document.getElementById('master-grid');
         const camera = document.querySelector('#camera');
 
-        let currentHeading = 0;
+        let state = "INIT"; 
+        let heading = 0;
 
-   
-        startBtn.addEventListener('click', () => {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(response => {
-                        if (response == 'granted') { startTracking(); }
-                    }).catch(e => alert("Orientation error: " + e));
-            } else {
-                startTracking();
+        // --- COMPASS LOGIC ---
+        function handleOrientation(e) {
+            heading = e.webkitCompassHeading || (360 - e.alpha);
+            if (state === "WAIT_LOCK") {
+                statusBar.innerText = `HEADING: ${Math.round(heading)}° NORTH`;
+            }
+        }
+
+        // --- BUTTON LOGIC ---
+        mainBtn.addEventListener('click', () => {
+            if (state === "INIT") {
+                // Request Permission (iOS)
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().then(res => {
+                        if (res === 'granted') startCompass();
+                    });
+                } else {
+                    startCompass();
+                }
+            } 
+            else if (state === "WAIT_LOCK") {
+                lockGrid();
             }
         });
 
-        function startTracking() {
-            startBtn.style.display = 'none';
-            lockBtn.style.display = 'block';
-            status.innerText = "POINT PHONE NORTH";
-            
-            window.addEventListener('deviceorientationabsolute', (e) => {
-              
-                currentHeading = e.webkitCompassHeading || (360 - e.alpha);
-                debug.innerText = `Heading: ${Math.round(currentHeading)}°`;
-            }, true);
+        function startCompass() {
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            state = "WAIT_LOCK";
+            mainBtn.innerText = "LOCK GRID TO NORTH";
+            mainBtn.style.background = "#28a745";
         }
 
-       
-        lockBtn.addEventListener('click', () => {
-            const camPos = camera.object3D.position;
+        function lockGrid() {
+            const pos = camera.object3D.position;
+            
+            
+            masterGrid.setAttribute('position', `${pos.x} -1.6 ${pos.z}`);
             
           
-            gridAnchor.setAttribute('position', `${camPos.x} -1.6 ${camPos.z}`);
+            masterGrid.setAttribute('rotation', `0 ${-heading} 0`);
             
-            
-            gridAnchor.setAttribute('rotation', `0 ${-currentHeading} 0`);
-            
-            generateGrid();
-            
-            lockBtn.style.display = 'none';
-            status.innerText = "GRID LOCKED TO NORTH";
-        });
+        
+            drawGraveGrid();
 
-      
-        function generateGrid() {
-            const spacing = 0.85; 
+            state = "LOCKED";
+            mainBtn.style.display = "none";
+            statusBar.innerText = "GRID LOCKED";
+        }
+
+  
+        function drawGraveGrid() {
+            const step = 0.85; 
             
-            // Inner Circle (1-16)
-            const innerMap = {
+            // Layout map for 1-16
+            const innerCircles = {
                 16:[-1,-2], 1:[0,-2], 2:[1,-2], 3:[2,-2],
                 4:[2,-1], 5:[2,0], 6:[2,1], 7:[2,2],
                 8:[1,2], 9:[0,2], 10:[-1,2], 11:[-2,2],
@@ -121,47 +121,45 @@
             };
 
             for (let i = 1; i <= 40; i++) {
-                let gx = 0, gz = 0, color = "#00ff00";
+                let x = 0, z = 0;
+                let col = "#00ff00";
 
                 if (i <= 16) {
-                    [gx, gz] = innerMap[i];
-                    color = "#00ff00"; // Green for inner
+                    [x, z] = innerCircles[i];
                 } else {
-                    // Outer Ring logic (17-40)
-                    if (i >= 38) { gx = i - 41; gz = -3; }
-                    else if (i >= 17 && i <= 20) { gx = i - 17; gz = -3; }
-                    else if (i >= 21 && i <= 25) { gx = 3; gz = i - 23; }
-                    else if (i >= 26 && i <= 32) { gx = 29 - i; gz = 3; }
-                    else if (i >= 33 && i <= 37) { gx = -3; gz = 35 - i; }
-                    color = "#00ccff";
+                    col = "#00ccff";
+                    // Simple ring math for outer (17-40)
+                    if (i >= 38) { x = i - 41; z = -3; }
+                    else if (i >= 17 && i <= 20) { x = i - 17; z = -3; }
+                    else if (i >= 21 && i <= 25) { x = 3; z = i - 23; }
+                    else if (i >= 26 && i <= 32) { x = 29 - i; z = 3; }
+                    else if (i >= 33 && i <= 37) { x = -3; z = 35 - i; }
                 }
 
-                createMarker(i, gx * spacing, gz * spacing, color);
+                addMarker(i, x * step, z * step, col);
             }
         }
 
-        function createMarker(num, x, z, color) {
-            const entity = document.createElement('a-entity');
-            entity.setAttribute('position', `${x} 0 ${z}`);
+        function addMarker(n, x, z, color) {
+            const el = document.createElement('a-entity');
+            el.setAttribute('position', `${x} 0 ${z}`);
 
-            
             const ring = document.createElement('a-ring');
-            ring.setAttribute('radius-inner', '0.2');
-            ring.setAttribute('radius-outer', '0.28');
+            ring.setAttribute('radius-inner', '0.22');
+            ring.setAttribute('radius-outer', '0.3');
             ring.setAttribute('color', color);
             ring.setAttribute('rotation', '-90 0 0');
-            
-            
-            const text = document.createElement('a-text');
-            text.setAttribute('value', num);
-            text.setAttribute('align', 'center');
-            text.setAttribute('width', '4');
-            text.setAttribute('position', '0 0.02 0');
-            text.setAttribute('rotation', '-90 0 0');
 
-            entity.appendChild(ring);
-            entity.appendChild(text);
-            gridAnchor.appendChild(entity);
+            const txt = document.createElement('a-text');
+            txt.setAttribute('value', n);
+            txt.setAttribute('align', 'center');
+            txt.setAttribute('width', '3.5');
+            txt.setAttribute('position', '0 0.05 0');
+            txt.setAttribute('rotation', '-90 0 0');
+
+            el.appendChild(ring);
+            el.appendChild(txt);
+            masterGrid.appendChild(el);
         }
     </script>
 </body>
