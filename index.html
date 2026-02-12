@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Grave Grid - iPhone/Safari Compatible</title>
+    <title>Grave Grid - iPhone Fixed</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-   <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
     
     <style>
-        #ui { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; align-items: center; width: 90%; }
-        button { padding: 15px 30px; font-size: 18px; border-radius: 30px; border: none; color: white; font-weight: bold; width: 100%; }
+        #ui { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; align-items: center; width: 90%; pointer-events: none; }
+        button { pointer-events: auto; padding: 15px 30px; font-size: 18px; border-radius: 30px; border: none; color: white; font-weight: bold; width: 100%; }
         #startBtn { background: #007bff; }
         #lockBtn { background: #28a745; display: none; }
         #debug { position: fixed; top: 10px; right: 10px; color: yellow; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; z-index: 1001; }
@@ -17,28 +17,26 @@
 </head>
 
 <body style="margin: 0; overflow: hidden;">
-    <div id="debug">Compass: ---</div>
+    <div id="debug">Compass: Waiting...</div>
     
     <div id="ui">
-        <button id="startBtn">1. START AR (Allow Camera)</button>
+        <button id="startBtn">1. START AR</button>
         <button id="lockBtn">2. LOCK GRID TO NORTH</button>
     </div>
 
     <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" renderer="antialias: true; alpha: true;">
-        
-        <a-entity id="grid-anchor" rotation="0 0 0">
-            </a-entity>
+        <a-entity id="grid-anchor"></a-entity>
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera id="cam" look-controls="enabled: false"></a-camera>
     </a-scene>
 
     <script>
         let compassHeading = 0;
         const gridAnchor = document.getElementById('grid-anchor');
+        const cam = document.getElementById('cam');
         const startBtn = document.getElementById('startBtn');
         const lockBtn = document.getElementById('lockBtn');
 
-        // 1. Handle Permissions and Compass for iPhone
         startBtn.addEventListener('click', () => {
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission().then(response => {
@@ -57,30 +55,34 @@
 
         function initCompass() {
             window.addEventListener('deviceorientationabsolute', (e) => {
+                // iPhone uses webkitCompassHeading
                 compassHeading = e.webkitCompassHeading || (360 - e.alpha);
                 document.getElementById('debug').innerText = `North: ${Math.round(compassHeading)}°`;
             }, true);
         }
 
-        // lock func
         lockBtn.addEventListener('click', () => {
-            // comapss rotation
-            // => North (- Z) matches world North
+            // 1. Get the camera's current world position
+            const camPos = cam.object3D.position;
+            
+            // 2. Move the anchor to your feet (y: -1.6 is roughly ground level from eye level)
+            gridAnchor.setAttribute('position', `${camPos.x} -1.6 ${camPos.z}`);
+            
+            // 3. Rotate the anchor to align with North
             gridAnchor.setAttribute('rotation', `0 ${-compassHeading} 0`);
             
-            // grid using slot math
-            buildGrid(1, 16, "#00ff00");  // Inner
-            buildGrid(17, 40, "#00ccff"); // Outer
+            // 4. Build the grid
+            buildGrid(1, 16, "#00ff00");
+            buildGrid(17, 40, "#00ccff");
             
             lockBtn.style.display = 'none';
+            document.getElementById('debug').innerText = "GRID LOCKED";
         });
 
         function buildGrid(start, end, color) {
             const spacing = 0.85;
-
             for (let num = start; num <= end; num++) {
                 let gridX = 0, gridZ = 0;
-
                 if (start === 1) {
                     const innerMap = {
                         16:[-1,-2], 1:[0,-2], 2:[1,-2], 3:[2,-2],
@@ -97,11 +99,9 @@
                     else if (num >= 33 && num <= 37) { gridX = -3; gridZ = 35 - num; }
                 }
 
-                // Create A-Frame Entity
                 const entity = document.createElement('a-entity');
                 entity.setAttribute('position', `${gridX * spacing} 0 ${gridZ * spacing}`);
                 
-                // Add the Ring
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.25');
                 ring.setAttribute('radius-outer', '0.32');
@@ -109,7 +109,6 @@
                 ring.setAttribute('rotation', '-90 0 0');
                 entity.appendChild(ring);
 
-                // Add the Text
                 const text = document.createElement('a-text');
                 text.setAttribute('value', num);
                 text.setAttribute('align', 'center');
