@@ -1,209 +1,125 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <title>Grave Grid - Final North Alignment</title>
+    <title>Grave Grid - iPhone/Safari Compatible</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.150.1/build/three.module.js" } }
-    </script>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+   <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+    
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
-        #instructions { background: rgba(0,0,0,0.7); color: white; padding: 15px; margin-top: 20px; border-radius: 20px; text-align: center; }
-        #lockBtn { pointer-events: auto; background: #28a745; color: white; font-size: 18px; padding: 15px 40px; border: none; border-radius: 30px; margin-bottom: 40px; display: none; }
-        #debug { position: absolute; top: 10px; right: 10px; color: yellow; font-size: 12px; }
+        #ui { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; align-items: center; width: 90%; }
+        button { padding: 15px 30px; font-size: 18px; border-radius: 30px; border: none; color: white; font-weight: bold; width: 100%; }
+        #startBtn { background: #007bff; }
+        #lockBtn { background: #28a745; display: none; }
+        #debug { position: fixed; top: 10px; right: 10px; color: yellow; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; z-index: 1001; }
     </style>
 </head>
-<body>
 
-    <div id="overlay">
-        <div id="instructions">Point at Tree Base<br>Wait for White Circle<br>Tap LOCK</div>
-        <div id="debug">Compass: ...</div>
-        <button id="lockBtn">LOCK GRID HERE</button>
+<body style="margin: 0; overflow: hidden;">
+    <div id="debug">Compass: ---</div>
+    
+    <div id="ui">
+        <button id="startBtn">1. START AR (Allow Camera)</button>
+        <button id="lockBtn">2. LOCK GRID TO NORTH</button>
     </div>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { ARButton } from 'https://unpkg.com/three@0.150.1/examples/jsm/webxr/ARButton.js';
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" renderer="antialias: true; alpha: true;">
+        
+        <a-entity id="grid-anchor" rotation="0 0 0">
+            </a-entity>
 
-        // SETTINGS
-        const HEADING_CORRECTION = 0; // -> switch 180 if North/South are swapped
-        const INNER_DIST = 1.0; 
-        const OUTER_DIST = 2.2;
+        <a-camera gps-camera rotation-reader></a-camera>
+    </a-scene>
 
-        let scene, camera, renderer, reticle, controller;
-        let hitTestSource = null;
-        let hitTestSourceRequested = false;
+    <script>
         let compassHeading = 0;
-        let gridLocked = false;
+        const gridAnchor = document.getElementById('grid-anchor');
+        const startBtn = document.getElementById('startBtn');
+        const lockBtn = document.getElementById('lockBtn');
 
-        init();
-        animate();
-
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-            scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            const arBtn = ARButton.createButton(renderer, { 
-                requiredFeatures: ['hit-test', 'dom-overlay'], 
-                domOverlay: { root: document.getElementById('overlay') } 
-            });
-            document.body.appendChild(arBtn);
-
-            arBtn.addEventListener('click', () => {
-                document.getElementById('lockBtn').style.display = 'block';
-                setupCompass();
-            });
-
-            reticle = new THREE.Mesh(
-                new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-                new THREE.MeshBasicMaterial()
-            );
-            reticle.matrixAutoUpdate = false;
-            reticle.visible = false;
-            scene.add(reticle);
-
-            controller = renderer.xr.getController(0);
-            scene.add(controller);
-
-            document.getElementById('lockBtn').addEventListener('click', onLockGrid);
-        }
-
-        function setupCompass() {
-            const handler = (e) => {
-                let h = e.webkitCompassHeading || (360 - e.alpha);
-                compassHeading = (h + HEADING_CORRECTION) % 360;
-                document.getElementById('debug').innerText = `North: ${Math.round(h)}°`;
-            };
+        // 1. Handle Permissions and Compass for iPhone
+        startBtn.addEventListener('click', () => {
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().then(res => {
-                    if (res === 'granted') window.addEventListener('deviceorientation', handler);
+                DeviceOrientationEvent.requestPermission().then(response => {
+                    if (response == 'granted') {
+                        initCompass();
+                        startBtn.style.display = 'none';
+                        lockBtn.style.display = 'block';
+                    }
                 });
             } else {
-                window.addEventListener('deviceorientationabsolute', handler, true);
+                initCompass();
+                startBtn.style.display = 'none';
+                lockBtn.style.display = 'block';
             }
+        });
+
+        function initCompass() {
+            window.addEventListener('deviceorientationabsolute', (e) => {
+                compassHeading = e.webkitCompassHeading || (360 - e.alpha);
+                document.getElementById('debug').innerText = `North: ${Math.round(compassHeading)}°`;
+            }, true);
         }
 
-        function onLockGrid() {
-            if (!reticle.visible || gridLocked) return;
+        // lock func
+        lockBtn.addEventListener('click', () => {
+            // comapss rotation
+            // => North (- Z) matches world North
+            gridAnchor.setAttribute('rotation', `0 ${-compassHeading} 0`);
             
-            const gridGroup = new THREE.Group();
-            gridGroup.position.setFromMatrixPosition(reticle.matrix);
+            // grid using slot math
+            buildGrid(1, 16, "#00ff00");  // Inner
+            buildGrid(17, 40, "#00ccff"); // Outer
             
-            // Align to Real North
-            gridGroup.rotation.y = -THREE.MathUtils.degToRad(compassHeading);
+            lockBtn.style.display = 'none';
+        });
 
-            //inner ring
-            generateSquareRing(gridGroup, 1, 16, INNER_DIST, 0x00ff00);
-            //outer ring, ring 2
-            generateSquareRing(gridGroup, 17, 40, OUTER_DIST, 0x00ccff);
+        function buildGrid(start, end, color) {
+            const spacing = 0.85;
 
-            scene.add(gridGroup);
-            gridLocked = true;
-            reticle.visible = false;
-            document.getElementById('lockBtn').style.display = 'none';
-            document.getElementById('instructions').innerText = "LOCKED TO NORTH";
-        }
+            for (let num = start; num <= end; num++) {
+                let gridX = 0, gridZ = 0;
 
-   function generateSquareRing(parent, start, end, dist, color) {
-    // spacing determines how far apart the slots are. 
-    // circles overlap => decrease the marker size in createMarker or increase this spacing.
-    const spacing = 0.85; 
-
-    for (let num = start; num <= end; num++) {
-        let gridX = 0;
-        let gridZ = 0;
-
-        if (start === 1) {
-            // INNER RING (5x5 Grid Slots)
-            // North: 16(-1,-2), 1(0,-2), 2(1,-2), 3(2,-2)
-            // East: 4(2,-1), 5(2,0), 6(2,1), 7(2,2)
-            // South: 8(1,2), 9(0,2), 10(-1,2), 11(-2,2)
-            // West: 12(-2,1), 13(-2,0), 14(-2,-1), 15(-2,-2)
-            
-            const innerMap = {
-                16:[-1,-2], 1:[0,-2], 2:[1,-2], 3:[2,-2],
-                4:[2,-1], 5:[2,0], 6:[2,1], 7:[2,2],
-                8:[1,2], 9:[0,2], 10:[-1,2], 11:[-2,2],
-                12:[-2,1], 13:[-2,0], 14:[-2,-1], 15:[-2,-2]
-            };
-            [gridX, gridZ] = innerMap[num];
-        } else {
-            // OUTER RING (7x7 Grid Slots)
-            // North Row (Top)
-            if (num >= 38 && num <= 40) { gridX = num - 41; gridZ = -3; } // 38(-3,-3), 39(-2,-3), 40(-1,-3)
-            else if (num >= 17 && num <= 20) { gridX = num - 17; gridZ = -3; } // 17(0,-3), 18(1,-3), 19(2,-3), 20(3,-3)
-            
-            // East Column (Right)
-            else if (num >= 21 && num <= 25) { gridX = 3; gridZ = num - 23; } // 21(3,-2), 22(3,-1), 23(3,0), 24(3,1), 25(3,2)
-            
-            // South Row (Bottom)
-            else if (num >= 26 && num <= 32) { gridX = 29 - num; gridZ = 3; } // 26(3,3) ... 32(-3,3)
-            
-            // West Column (Left)
-            else if (num >= 33 && num <= 37) { gridX = -3; gridZ = 35 - num; } // 33(-3,2) ... 37(-3,-2)
-        }
-
-        const marker = createMarker(num, color);
-        // Slot * Spacing = Real World Meters
-        marker.position.set(gridX * spacing, 0, gridZ * spacing);
-        parent.add(marker);
-    }
-}
-
-        function createMarker(num, color) {
-            const g = new THREE.Group();
-            const ring = new THREE.Mesh(
-                new THREE.RingGeometry(0.25, 0.32, 32).rotateX(-Math.PI/2),
-                new THREE.MeshBasicMaterial({ color: color })
-            );
-            g.add(ring);
-
-            const canvas = document.createElement('canvas');
-            canvas.width = 128; canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = "white"; ctx.font = "bold 70px Arial"; ctx.textAlign = "center";
-            ctx.fillText(num, 64, 85);
-
-            const tex = new THREE.CanvasTexture(canvas);
-            const label = new THREE.Mesh(
-                new THREE.PlaneGeometry(0.5, 0.5).rotateX(-Math.PI/2),
-                new THREE.MeshBasicMaterial({ map: tex, transparent: true })
-            );
-            label.position.y = 0.01;
-            g.add(label);
-            return g;
-        }
-
-        function animate() { renderer.setAnimationLoop(render); }
-        function render(timestamp, frame) {
-            if (frame) {
-                const session = renderer.xr.getSession();
-                const refSpace = renderer.xr.getReferenceSpace();
-                if (!hitTestSourceRequested) {
-                    session.requestReferenceSpace('viewer').then(s => {
-                        session.requestHitTestSource({ space: s }).then(src => hitTestSource = src);
-                    });
-                    hitTestSourceRequested = true;
+                if (start === 1) {
+                    const innerMap = {
+                        16:[-1,-2], 1:[0,-2], 2:[1,-2], 3:[2,-2],
+                        4:[2,-1], 5:[2,0], 6:[2,1], 7:[2,2],
+                        8:[1,2], 9:[0,2], 10:[-1,2], 11:[-2,2],
+                        12:[-2,1], 13:[-2,0], 14:[-2,-1], 15:[-2,-2]
+                    };
+                    [gridX, gridZ] = innerMap[num];
+                } else {
+                    if (num >= 38 && num <= 40) { gridX = num - 41; gridZ = -3; }
+                    else if (num >= 17 && num <= 20) { gridX = num - 17; gridZ = -3; }
+                    else if (num >= 21 && num <= 25) { gridX = 3; gridZ = num - 23; }
+                    else if (num >= 26 && num <= 32) { gridX = 29 - num; gridZ = 3; }
+                    else if (num >= 33 && num <= 37) { gridX = -3; gridZ = 35 - num; }
                 }
-                if (hitTestSource && !gridLocked) {
-                    const results = frame.getHitTestResults(hitTestSource);
-                    if (results.length > 0) {
-                        reticle.visible = true;
-                        reticle.matrix.fromArray(results[0].getPose(refSpace).transform.matrix);
-                    } else { reticle.visible = false; }
-                }
+
+                // Create A-Frame Entity
+                const entity = document.createElement('a-entity');
+                entity.setAttribute('position', `${gridX * spacing} 0 ${gridZ * spacing}`);
+                
+                // Add the Ring
+                const ring = document.createElement('a-ring');
+                ring.setAttribute('radius-inner', '0.25');
+                ring.setAttribute('radius-outer', '0.32');
+                ring.setAttribute('color', color);
+                ring.setAttribute('rotation', '-90 0 0');
+                entity.appendChild(ring);
+
+                // Add the Text
+                const text = document.createElement('a-text');
+                text.setAttribute('value', num);
+                text.setAttribute('align', 'center');
+                text.setAttribute('width', '4');
+                text.setAttribute('position', '0 0.05 0');
+                text.setAttribute('rotation', '-90 0 0');
+                entity.appendChild(text);
+
+                gridAnchor.appendChild(entity);
             }
-            renderer.render(scene, camera);
         }
     </script>
 </body>
