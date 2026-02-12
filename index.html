@@ -1,163 +1,170 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <title>Grave Grid - iOS A-Frame Version</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Grave Grid - Pro Fixed</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,shrink-to-fit=no,user-scalable=no,viewport-fit=cover">
     
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
-    
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
         
-        #overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            pointer-events: none; z-index: 999; 
-            display: flex; flex-direction: column; justify-content: space-between; align-items: center; 
-        }
         
-        #instructions { 
-            background: rgba(0,0,0,0.7); color: white; padding: 15px; 
-            margin-top: 20px; border-radius: 20px; text-align: center; pointer-events: none;
+        #ui-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 9999; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; align-items: center;
         }
 
-        .btn {
-            pointer-events: auto; font-size: 18px; padding: 15px 40px; 
-            border: none; border-radius: 30px; color: white; font-weight: bold;
-            margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        .hud-text {
+            background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
+            margin-top: 20px; border-radius: 10px; text-align: center; pointer-events: none;
         }
 
-        #startBtn { background: #007bff; }
-        #lockBtn { background: #28a745; display: none; }
-        
-        #debug { position: absolute; top: 10px; right: 10px; color: yellow; font-size: 12px; background: rgba(0,0,0,0.5); padding: 5px; }
+        .action-btn {
+            pointer-events: auto; width: 200px; padding: 15px; border-radius: 50px;
+            border: none; font-weight: bold; font-size: 16px; color: white;
+            margin-bottom: 40px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+
+        #startBtn { background-color: #ef2d5e; } /* A-Frame Pink */
+        #lockBtn { background-color: #28a745; display: none; } /* Green */
+
+        #debug { 
+            position: absolute; top: 10px; right: 10px; color: #00ff00; 
+            font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.5); padding: 5px;
+        }
     </style>
 </head>
 
 <body>
+    <div id="debug">System: Initializing...</div>
 
-    <div id="debug">Compass: ---</div>
+    <div id="ui-layer">
+        <div class="hud-text" id="instructions">
+            Step 1: Enable AR Sensors
+        </div>
 
-    <div id="overlay">
-        <div id="instructions">1. Tap START AR<br>2. Face North & Tap LOCK</div>
-        
-        <button id="startBtn" class="btn">START AR</button>
-        <button id="lockBtn" class="btn">LOCK GRID HERE</button>
+        <button id="startBtn" class="action-btn">1. START AR</button>
+        <button id="lockBtn" class="action-btn">2. LOCK GRID</button>
     </div>
 
     <a-scene 
         embedded 
         vr-mode-ui="enabled: false"
         arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;"
-        renderer="antialias: true; alpha: true;">
+        renderer="antialias: true; alpha: true; precision: medium;">
         
         <a-entity id="grid-anchor"></a-entity>
-
-        <a-camera id="cam" look-controls="enabled: false" wasd-controls-enabled="false"></a-camera>
+        
+        <a-camera id="camera" look-controls="enabled: false" wasd-controls-enabled="false"></a-camera>
     </a-scene>
 
     <script>
-        let compassHeading = 0;
-        const gridAnchor = document.getElementById('grid-anchor');
-        const cam = document.getElementById('cam');
         const startBtn = document.getElementById('startBtn');
         const lockBtn = document.getElementById('lockBtn');
+        const instructions = document.getElementById('instructions');
         const debug = document.getElementById('debug');
+        const gridAnchor = document.getElementById('grid-anchor');
+        const cameraEntity = document.querySelector('#camera');
 
-        // 1. START AR BUTTON: Triggers iOS Camera and Compass Permissions
+        let compassHeading = 0;
+
+        //enable Sensors 
         startBtn.addEventListener('click', () => {
+            // req Compass Permission
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission().then(response => {
                     if (response == 'granted') {
-                        initCompass();
-                        switchToLockUI();
+                        activateAR();
                     }
-                }).catch(err => alert("Please use HTTPS for AR/Compass"));
+                }).catch(err => {
+                    debug.innerText = "Error: Use HTTPS";
+                });
             } else {
-                initCompass();
-                switchToLockUI();
+                //android
+                activateAR();
             }
         });
 
-        function switchToLockUI() {
+        function activateAR() {
             startBtn.style.display = 'none';
             lockBtn.style.display = 'block';
-            debug.innerText = "Compass: Active";
-        }
-
-        function initCompass() {
+            instructions.innerHTML = "Step 2: Point Phone North<br>Then tap LOCK";
+            
             window.addEventListener('deviceorientationabsolute', (e) => {
-                // iPhone heading
                 compassHeading = e.webkitCompassHeading || (360 - e.alpha);
-                debug.innerText = `North: ${Math.round(compassHeading)}°`;
+                debug.innerText = `Heading: ${Math.round(compassHeading)}° N`;
             }, true);
         }
 
-        // drop the grid->North
+        //Lock Grid
         lockBtn.addEventListener('click', () => {
-            const camPos = cam.object3D.position;
+            //current camera world position
+            const pos = cameraEntity.object3D.position;
             
-            // Move anchor to camera position but on the floor (approx -1.6m down)
-            gridAnchor.setAttribute('position', `${camPos.x} -1.6 ${camPos.z}`);
             
-            //roation nroth
+            gridAnchor.setAttribute('position', `${pos.x} -1.6 ${pos.z}`);
+            
+            // rot anchor to N
             gridAnchor.setAttribute('rotation', `0 ${-compassHeading} 0`);
             
-            // grid rings
-            generateGrid(1, 16, "#00ff00");  // Inner
-            generateGrid(17, 40, "#00ccff"); // Outer
+         
+            generateRings(1, 16, "#00ff00");  // Inner
+            generateRings(17, 40, "#00ccff"); // Outer
             
             lockBtn.style.display = 'none';
-            debug.innerText = "GRID LOCKED";
+            instructions.innerText = "GRID LOCKED TO NORTH";
+            debug.innerText = "Status: Grid Active";
         });
 
-        function generateGrid(start, end, color) {
+        function generateRings(start, end, color) {
             const spacing = 0.85;
 
             for (let num = start; num <= end; num++) {
-                let gridX = 0, gridZ = 0;
+                let gx = 0, gz = 0;
 
                 if (start === 1) {
-                    // INNER RING 
                     const innerMap = {
                         16:[-1,-2], 1:[0,-2], 2:[1,-2], 3:[2,-2],
                         4:[2,-1], 5:[2,0], 6:[2,1], 7:[2,2],
                         8:[1,2], 9:[0,2], 10:[-1,2], 11:[-2,2],
                         12:[-2,1], 13:[-2,0], 14:[-2,-1], 15:[-2,-2]
                     };
-                    [gridX, gridZ] = innerMap[num];
+                    [gx, gz] = innerMap[num];
                 } else {
-                    //OUTER RING
-                    if (num >= 38 && num <= 40) { gridX = num - 41; gridZ = -3; }
-                    else if (num >= 17 && num <= 20) { gridX = num - 17; gridZ = -3; }
-                    else if (num >= 21 && num <= 25) { gridX = 3; gridZ = num - 23; }
-                    else if (num >= 26 && num <= 32) { gridX = 29 - num; gridZ = 3; }
-                    else if (num >= 33 && num <= 37) { gridX = -3; gridZ = 35 - num; }
+                    if (num >= 38 && num <= 40) { gx = num - 41; gz = -3; }
+                    else if (num >= 17 && num <= 20) { gx = num - 17; gz = -3; }
+                    else if (num >= 21 && num <= 25) { gx = 3; gz = num - 23; }
+                    else if (num >= 26 && num <= 32) { gx = 29 - num; gz = 3; }
+                    else if (num >= 33 && num <= 37) { gx = -3; gz = 35 - num; }
                 }
 
-                // Create A-Frame Entity
-                const entity = document.createElement('a-entity');
-                entity.setAttribute('position', `${gridX * spacing} 0 ${gridZ * spacing}`);
+                // Wrapper
+                const marker = document.createElement('a-entity');
+                marker.setAttribute('position', `${gx * spacing} 0 ${gz * spacing}`);
                 
-                //Ring
+                // Ring
                 const ring = document.createElement('a-ring');
                 ring.setAttribute('radius-inner', '0.25');
                 ring.setAttribute('radius-outer', '0.32');
                 ring.setAttribute('color', color);
                 ring.setAttribute('rotation', '-90 0 0');
-                entity.appendChild(ring);
+                marker.appendChild(ring);
 
-               
-                const text = document.createElement('a-text');
-                text.setAttribute('value', num);
-                text.setAttribute('align', 'center');
-                text.setAttribute('width', '4');
-                text.setAttribute('position', '0 0.05 0');
-                text.setAttribute('rotation', '-90 0 0');
-                entity.appendChild(text);
+                // Number
+                const txt = document.createElement('a-text');
+                txt.setAttribute('value', num);
+                txt.setAttribute('align', 'center');
+                txt.setAttribute('width', '4');
+                txt.setAttribute('position', '0 0.05 0');
+                txt.setAttribute('rotation', '-90 0 0');
+                marker.appendChild(txt);
 
-                gridAnchor.appendChild(entity);
+                gridAnchor.appendChild(marker);
             }
         }
     </script>
