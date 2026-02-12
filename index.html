@@ -1,101 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Grave Grid - Auto Start</title>
+    <title>Grave Grid - iPhone Fixed</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     
     <style>
-        body, html { margin: 0; overflow: hidden; width: 100%; height: 100%; background-color: #000; }
+        /* Force the body and html to be transparent so the camera shows through */
+        body, html { margin: 0; overflow: hidden; width: 100%; height: 100%; background-color: transparent; }
         
-      
-        #permission-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 10000;
-            display: flex; justify-content: center; align-items: center;
-            color: white; font-family: sans-serif; text-align: center;
+        #ui { 
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            z-index: 9999; display: flex; flex-direction: column; gap: 10px; 
+            align-items: center; width: 90%; pointer-events: none; 
         }
-
-        #lockBtn { 
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 9999; padding: 15px 40px; font-size: 18px; 
-            border-radius: 30px; border: none; color: white; font-weight: bold;
-            background: #28a745; display: none; /* Shows after permission */
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        button { 
+            pointer-events: auto; padding: 15px 30px; font-size: 18px; 
+            border-radius: 30px; border: none; color: white; font-weight: bold; width: 100%; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
-
+        #startBtn { background: #007bff; }
+        #lockBtn { background: #28a745; display: none; }
         #debug { 
             position: fixed; top: 10px; right: 10px; color: yellow; 
             background: rgba(0,0,0,0.6); padding: 8px; font-family: monospace; z-index: 10000; 
-            border-radius: 5px; font-size: 12px; pointer-events: none;
+            border-radius: 5px; font-size: 12px;
         }
     </style>
 </head>
 
 <body>
-    <div id="debug">Waiting for interaction...</div>
+    <div id="debug">Status: Waiting for Start...</div>
     
-    <div id="permission-overlay">
-        <h2>Tap anywhere to start AR</h2>
+    <div id="ui">
+        <button id="startBtn">1. ACCESS CAMERA & COMPASS</button>
+        <button id="lockBtn">2. LOCK GRID TO NORTH</button>
     </div>
-
-    <button id="lockBtn">LOCK GRID TO NORTH</button>
 
     <a-scene 
         embedded 
-        vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; debugUIEnabled: false;"
-        renderer="antialias: true; alpha: true;">
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        renderer="antialias: true; alpha: true; precision: medium;">
         
         <a-entity id="grid-anchor"></a-entity>
-        <a-camera id="cam" look-controls="enabled: false"></a-camera>
+
+        <a-camera id="cam" look-controls="enabled: false" wasd-controls-enabled="false"></a-camera>
     </a-scene>
 
     <script>
         let compassHeading = 0;
-        let permissionsGranted = false;
         const gridAnchor = document.getElementById('grid-anchor');
         const cam = document.getElementById('cam');
-        const overlay = document.getElementById('permission-overlay');
+        const startBtn = document.getElementById('startBtn');
         const lockBtn = document.getElementById('lockBtn');
         const debug = document.getElementById('debug');
 
-        // Capture the first tap anywhere to satisfy iOS security
-        window.addEventListener('click', function() {
-            if (permissionsGranted) return;
-
+        startBtn.addEventListener('click', () => {
+            // iOS Permission Check
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission().then(response => {
                     if (response == 'granted') {
-                        startARSession();
+                        initCompass();
+                        startBtn.style.display = 'none';
+                        lockBtn.style.display = 'block';
+                        debug.innerText = "Compass: Active";
+                    } else {
+                        debug.innerText = "Permission Denied";
                     }
-                }).catch(console.error);
+                }).catch(err => {
+                    debug.innerText = "Error: Use HTTPS";
+                });
             } else {
-                startARSession();
+                initCompass();
+                startBtn.style.display = 'none';
+                lockBtn.style.display = 'block';
             }
         });
 
-        function startARSession() {
-            permissionsGranted = true;
-            overlay.style.display = 'none';
-            lockBtn.style.display = 'block';
-            
+        function initCompass() {
             window.addEventListener('deviceorientationabsolute', (e) => {
                 compassHeading = e.webkitCompassHeading || (360 - e.alpha);
                 debug.innerText = `North: ${Math.round(compassHeading)}°`;
             }, true);
         }
 
-        lockBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent re-triggering the window click
-            
+        lockBtn.addEventListener('click', () => {
+            // Get camera position
             const camPos = cam.object3D.position;
+            
+            // Set anchor at feet and rotate to North
             gridAnchor.setAttribute('position', `${camPos.x} -1.6 ${camPos.z}`);
             gridAnchor.setAttribute('rotation', `0 ${-compassHeading} 0`);
             
+            // Use your perfected Slot Math
             buildGrid(1, 16, "#00ff00");
             buildGrid(17, 40, "#00ccff");
             
