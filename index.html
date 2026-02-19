@@ -1,62 +1,44 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Markerless AR Anchor</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    
     <style>
-      #overlay {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 999;
-      }
-      button {
-        padding: 15px 25px;
-        border-radius: 30px;
-        border: none;
-        background: #007AFF;
-        color: white;
-        font-weight: bold;
-      }
-    </style>
-  </head>
-  <body style="margin: 0; overflow: hidden;">
-
-    <div id="overlay">
-      <button onclick="placeObject()">PLACE ON SPOT</button>
-    </div>
-
-    <a-scene embedded>
-      <a-assets>
-         <video id="webcam" autoplay playsinline></video>
-      </a-assets>
-
-      <a-entity id="anchor" visible="false">
-        <a-box position="0 0 -3" material="color: #4CC3D9;" scale="0.5 0.5 0.5"></a-box>
-      </a-entity>
-
-      <a-camera id="cam" look-controls="magicWindowTrackingEnabled: true">
-      </a-camera>
-    </a-scene>
-
-    <script>
-      
-      const video = document.getElementById('webcam');
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-        .then(stream => { video.srcObject = stream; })
-        .catch(err => console.error("Webcam error:", err));
-
-      function placeObject() {
-        const cam = document.getElementById('cam');
-        const anchor = document.getElementById('anchor');
- 
-        const rotation = cam.getAttribute('rotation');
-      
-        anchor.setAttribute('rotation', rotation);
-        anchor.setAttribute('visible', 'true');
+        body { margin: 0; background-color: #f0f0f0; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
+        model-viewer { width: 100%; height: 100%; background-color: #eee; }
         
-        alert("Object placed in your current direction!");
-      }
-    </script>
-  </body>
+        /* The AR Button style */
+        #ar-button {
+            background-color: white;
+            border-radius: 4px;
+            border: none;
+            position: absolute;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <model-viewer 
+        src="https://modelviewer.dev/shared-assets/models/Astronaut.glb" 
+        ar 
+        ar-modes="webxr scene-viewer quick-look" 
+        camera-controls 
+        touch-action="pan-y" 
+        shadow-intensity="1">
+        
+        <button slot="ar-button" id="ar-button">
+            👋 PLACE IN YOUR ROOM
+        </button>
+    </model-viewer>
+
+</body>
 </html>
