@@ -2,97 +2,98 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Universal AR Anchor</title>
+    <title>Fixed AR Anchor</title>
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,shrink-to-fit=no,user-scalable=no,viewport-fit=cover">
     
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-        .buttons {
+        #ui {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
-            display: flex;
-            gap: 10px;
+            text-align: center;
         }
         button {
-            padding: 15px 25px;
-            background: #2196F3;
+            padding: 15px 30px;
+            background: #4CAF50;
             color: white;
             border: none;
-            border-radius: 50px;
-            font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        #status {
+        #msg {
             position: fixed;
             top: 10px;
-            width: 100%;
-            text-align: center;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
             color: white;
-            background: rgba(0,0,0,0.5);
-            z-index: 1001;
-            padding: 5px;
+            padding: 8px 15px;
+            border-radius: 5px;
             font-family: sans-serif;
+            font-size: 12px;
+            z-index: 1000;
         }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
-    <div id="status">Waiting for GPS...</div>
+    <div id="msg">Point phone at the horizon and walk a few steps...</div>
     
-    <div class="buttons">
-        <button onclick="placeObject()">PLACE OBJECT HERE</button>
+    <div id="ui">
+        <button onclick="lockAnchor()">LOCK ANCHOR HERE</button>
     </div>
 
     <a-scene
         vr-mode-ui="enabled: false"
         embedded
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+        arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
 
-        <a-entity id="anchor-point">
-            <a-box position="0 0.5 0" material="color: yellow; opacity: 0.8;" scale="2 2 2"></a-box>
-            <a-cylinder position="0 0 0" radius="1" height="0.1" color="white"></a-cylinder>
+        <a-entity id="anchor" visible="false">
+            <a-box position="0 0.5 0" material="color: #EF2D5E; side: double;" scale="1 1 1"></a-box>
+            <a-ring color="#FFF" rotation="-90 0 0" radius-inner="0.5" radius-outer="0.6"></a-ring>
         </a-entity>
 
-        <a-camera gps-camera rotation-reader></a-camera>
+        <a-camera 
+            gps-camera="gpsMinDistance: 5; simulateAltitude: 1.6;" 
+            rotation-reader>
+        </a-camera>
     </a-scene>
 
     <script>
-        const status = document.getElementById('status');
-        const anchor = document.getElementById('anchor-point');
+        const anchor = document.getElementById('anchor');
+        const msg = document.getElementById('msg');
 
-        // 1. Hide the object until the button is pressed
-        anchor.setAttribute('visible', 'false');
+        function lockAnchor() {
+            msg.innerText = "Getting High-Accuracy GPS...";
+            
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
 
-        // 2. Function to lock the object to your current spot
-        function placeObject() {
-            navigator.geolocation.getCurrentPosition((position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-
-                // Set the GPS coordinates of the object to YOUR coordinates
+                // Place the object at your exact feet
                 anchor.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
                 anchor.setAttribute('visible', 'true');
                 
-                status.innerText = `Object Locked at: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-                console.log("Object Anchored.");
-            }, (err) => {
-                status.innerText = "Error getting location: " + err.message;
-            }, {
-                enableHighAccuracy: true
-            });
+                msg.innerText = "ANCHORED. Walk away to test.";
+                console.log(`Placed at: ${lat}, ${lon}`);
+            }, 
+            (err) => { alert("Error: " + err.message); }, 
+            { enableHighAccuracy: true });
         }
 
-        // Update status when GPS is found
-        window.addEventListener('gps-camera-update-position', (e) => {
-            if(status.innerText === "Waiting for GPS...") {
-                status.innerText = "GPS Ready. Stand still and press Place.";
-            }
-        });
-    </script>
-</body>
-</html>
+        // iPhone Requirement: Request Permission for Orientation
+        window.addEventListener('load', () => {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                const btn = document.createElement('button');
+                btn.innerText = "Enable Sensors (iOS)";
+                btn.style.position = "fixed";
+                btn.style.top = "50%";
+                btn.style.left = "50%";
+                btn.style.transform = "translate(-50%, -50%)";
+                btn.style.zIndex
