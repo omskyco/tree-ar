@@ -96,4 +96,15 @@
                 btn.style.top = "50%";
                 btn.style.left = "50%";
                 btn.style.transform = "translate(-50%, -50%)";
-                btn.style.zIndex
+                btn.style.zIndex = "2000";
+                btn.onclick = () => {
+                    DeviceOrientationEvent.requestPermission().then(res => {
+                        if (res === 'granted') btn.remove();
+                    });
+                };
+                document.body.appendChild(btn);
+            }
+        });
+    </script>
+</body>
+</html>
